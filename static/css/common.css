@@ -261,9 +261,14 @@ body {
     min-width: 320px;
 }
 
-.toast.success { border-left-color: var(--success); }
-.toast.error { border-left-color: var(--danger); }
-.toast.warning { border-left-color: var(--warning); }
+.toast.success { border-left-color: var(--success); background: #ecfdf5; }
+.toast.success i { color: var(--success); }
+.toast.error { border-left-color: var(--danger); background: #fef2f2; }
+.toast.error i { color: var(--danger); }
+.toast.warning { border-left-color: var(--warning); background: #fffbeb; }
+.toast.warning i { color: var(--warning); }
+.toast.info { border-left-color: var(--primary); background: #eff6ff; }
+.toast.info i { color: var(--primary); }
 
 @keyframes slideIn {
     from { transform: translateX(100%); opacity: 0; }

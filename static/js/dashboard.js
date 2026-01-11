@@ -2,11 +2,26 @@
 
 let currentCompany = '';
 
+// Get company from URL parameter
+function getCompanyFromUrl() {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('company') || '';
+}
+
 // Load Dashboard Data
 async function loadDashboard() {
+    // Get company from URL
+    currentCompany = getCompanyFromUrl();
+    
+    // Update page title with company name
+    if (currentCompany) {
+        document.getElementById('page-title').textContent = currentCompany;
+        document.getElementById('page-subtitle').textContent = 'Company Dashboard - Synced Data Overview';
+        document.title = `${currentCompany} - Dashboard`;
+    }
+    
     await Promise.all([
         loadStats(),
-        loadCompanyFilter(),
         loadTableStats()
     ]);
 }
@@ -14,11 +29,14 @@ async function loadDashboard() {
 // Load Stats
 async function loadStats() {
     try {
-        const stats = await apiCall('/api/data/stats');
+        let endpoint = '/api/data/counts';
+        if (currentCompany) {
+            endpoint += `?company=${encodeURIComponent(currentCompany)}`;
+        }
+        
+        const stats = await apiCall(endpoint);
         
         let totalRecords = 0;
-        let companies = new Set();
-        
         Object.entries(stats).forEach(([key, value]) => {
             if (typeof value === 'number') {
                 totalRecords += value;
@@ -27,49 +45,36 @@ async function loadStats() {
         
         document.getElementById('total-records').textContent = formatNumber(totalRecords);
         
-        // Get companies count
-        const companyData = await apiCall('/api/data/companies').catch(() => ({ count: 0 }));
-        document.getElementById('total-companies').textContent = companyData.count || 0;
+        // Get companies count (1 if filtered, else total)
+        if (currentCompany) {
+            document.getElementById('total-companies').textContent = '1';
+        } else {
+            const companyData = await apiCall('/api/data/synced-companies').catch(() => ({ count: 0 }));
+            document.getElementById('total-companies').textContent = companyData.count || 0;
+        }
         
-        // Get last sync
-        const syncStatus = await apiCall('/api/sync/status').catch(() => ({}));
-        if (syncStatus.completed_at) {
-            document.getElementById('last-sync').textContent = formatTime(syncStatus.completed_at);
+        // Get last sync for this company
+        if (currentCompany) {
+            const syncedCompanies = await apiCall('/api/data/synced-companies').catch(() => ({ companies: [] }));
+            const company = syncedCompanies.companies?.find(c => c.company_name === currentCompany);
+            if (company?.last_sync_at) {
+                document.getElementById('last-sync').textContent = formatTime(company.last_sync_at);
+            }
+        } else {
+            const syncStatus = await apiCall('/api/sync/status').catch(() => ({}));
+            if (syncStatus.completed_at) {
+                document.getElementById('last-sync').textContent = formatTime(syncStatus.completed_at);
+            }
         }
     } catch (error) {
         console.error('Failed to load stats:', error);
     }
 }
 
-// Load Company Filter
-async function loadCompanyFilter() {
-    try {
-        const data = await apiCall('/api/data/companies');
-        const select = document.getElementById('company-filter');
-        
-        if (data.companies) {
-            data.companies.forEach(company => {
-                const option = document.createElement('option');
-                option.value = company.name;
-                option.textContent = company.name;
-                select.appendChild(option);
-            });
-        }
-    } catch (error) {
-        console.error('Failed to load companies:', error);
-    }
-}
-
-// Filter by Company
-function filterByCompany() {
-    currentCompany = document.getElementById('company-filter').value;
-    loadTableStats();
-}
-
 // Load Table Stats
 async function loadTableStats() {
     try {
-        let endpoint = '/api/data/stats';
+        let endpoint = '/api/data/counts';
         if (currentCompany) {
             endpoint += `?company=${encodeURIComponent(currentCompany)}`;
         }

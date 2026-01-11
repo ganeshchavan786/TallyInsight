@@ -71,7 +71,7 @@ class HealthService:
             size = await database_service.get_database_size()
             counts = await database_service.get_all_table_counts()
             total_rows = sum(counts.values())
-            await database_service.disconnect()
+            # Don't disconnect - sync may be using the connection
             
             return {
                 'status': HealthStatus.HEALTHY,

@@ -1,5 +1,24 @@
 /* Audit Page Styles */
 
+/* Page Header with Back Button */
+.page-header-left {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+}
+
+.btn-back {
+    padding: 10px 16px;
+    border-radius: 8px;
+    font-size: 0.875rem;
+}
+
+.btn-back:hover {
+    background: var(--primary-light);
+    border-color: var(--primary);
+    color: var(--primary);
+}
+
 /* Filter Group */
 .filter-group {
     display: flex;

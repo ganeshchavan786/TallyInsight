@@ -185,11 +185,11 @@ async def execute_query(query_request: dict):
 
 
 @router.get("/counts")
-async def get_table_counts():
-    """Get row counts for all tables"""
+async def get_table_counts(company: Optional[str] = None):
+    """Get row counts for all tables, optionally filtered by company"""
     try:
         await database_service.connect()
-        counts = await database_service.get_all_table_counts()
+        counts = await database_service.get_all_table_counts(company=company)
         return counts
     except Exception as e:
         logger.error(f"Failed to get counts: {e}")
@@ -232,4 +232,21 @@ async def get_tally_companies():
         }
     except Exception as e:
         logger.error(f"Failed to get Tally companies: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/company/{company_name}")
+async def delete_company(company_name: str):
+    """Delete all data for a specific company from the database"""
+    try:
+        await database_service.connect()
+        deleted_count = await database_service.delete_company_data(company_name)
+        logger.info(f"Deleted company '{company_name}': {deleted_count} rows removed")
+        return {
+            "success": True,
+            "message": f"Company '{company_name}' deleted successfully",
+            "deleted_rows": deleted_count
+        }
+    except Exception as e:
+        logger.error(f"Failed to delete company '{company_name}': {e}")
         raise HTTPException(status_code=500, detail=str(e))

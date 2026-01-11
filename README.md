@@ -92,6 +92,41 @@ In Tally ERP 9/Prime:
 2. Set **Enable ODBC Server** to **Yes**
 3. Set **Port** to **9000**
 
+---
+
+## 📅 Company Period Auto-Detection
+
+The system automatically detects and stores company period (books_from/books_to) from Tally:
+
+### Flow:
+1. **First Sync**: Period auto-detected from Tally's `BOOKSFROM` field
+2. **Stored**: Period saved in `company_config` table
+3. **Re-Sync**: Uses stored period for subsequent syncs
+4. **Override**: Can manually specify `from_date` and `to_date` in API
+
+### API Parameters:
+```
+POST /api/sync/full?company=CompanyName&from_date=2019-04-01&to_date=2026-03-31
+```
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `company` | Company name to sync | Active company in Tally |
+| `from_date` | Start date (YYYY-MM-DD) | Auto-detect from Tally |
+| `to_date` | End date (YYYY-MM-DD) | Current financial year end |
+
+### company_config Table:
+```sql
+CREATE TABLE company_config (
+    company_name TEXT NOT NULL UNIQUE,
+    company_guid TEXT,
+    books_from TEXT,      -- Stored period start
+    books_to TEXT,        -- Stored period end
+    last_sync_at TEXT,
+    sync_count INTEGER
+);
+```
+
 ### 5. Run Server
 
 ```bash

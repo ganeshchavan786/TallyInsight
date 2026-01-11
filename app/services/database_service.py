@@ -374,7 +374,8 @@ class DatabaseService:
         placeholders = ', '.join(['?' for _ in columns])
         column_names = ', '.join(columns)
         
-        query = f"INSERT INTO {table_name} ({column_names}) VALUES ({placeholders})"
+        # Use INSERT OR REPLACE to handle existing records with same GUID
+        query = f"INSERT OR REPLACE INTO {table_name} ({column_names}) VALUES ({placeholders})"
         
         # Convert rows to tuples
         params_list = [tuple(row.get(col) for col in columns) for row in rows]
@@ -385,11 +386,15 @@ class DatabaseService:
             total_inserted = 0
             
             for i in range(0, len(params_list), batch_size):
+                # Re-check connection before each batch (other API calls may close it)
+                if not self._connection:
+                    await self.connect()
                 batch = params_list[i:i + batch_size]
                 await self._connection.executemany(query, batch)
                 total_inserted += len(batch)
             
-            await self._connection.commit()
+            if self._connection:
+                await self._connection.commit()
             logger.debug(f"Inserted {total_inserted} rows into {table_name}")
             return total_inserted
         except Exception as e:
@@ -416,11 +421,45 @@ class DatabaseService:
         except:
             return 0
     
-    async def get_all_table_counts(self) -> Dict[str, int]:
-        """Get row counts for all tables"""
+    async def get_all_table_counts(self, company: str = None) -> Dict[str, int]:
+        """Get row counts for all tables, optionally filtered by company"""
         counts = {}
+        conn = await self._get_connection()
+        
         for table in ALL_TABLES:
-            counts[table] = await self.get_table_count(table)
+            try:
+                # Check if table exists
+                cursor = await conn.execute(
+                    "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name=?",
+                    (table,)
+                )
+                row = await cursor.fetchone()
+                if not row or row[0] == 0:
+                    counts[table] = 0
+                    continue
+                
+                # If company filter provided, check if _company column exists
+                if company:
+                    cursor = await conn.execute(f"PRAGMA table_info({table})")
+                    columns = await cursor.fetchall()
+                    column_names = [col[1] for col in columns]
+                    
+                    if "_company" in column_names:
+                        cursor = await conn.execute(
+                            f"SELECT COUNT(*) FROM {table} WHERE _company = ?",
+                            (company,)
+                        )
+                    else:
+                        cursor = await conn.execute(f"SELECT COUNT(*) FROM {table}")
+                else:
+                    cursor = await conn.execute(f"SELECT COUNT(*) FROM {table}")
+                
+                row = await cursor.fetchone()
+                counts[table] = row[0] if row else 0
+            except Exception as e:
+                logger.debug(f"Error getting count for {table}: {e}")
+                counts[table] = 0
+        
         return counts
     
     async def table_exists(self, table_name: str) -> bool:
@@ -841,6 +880,8 @@ CREATE INDEX IF NOT EXISTS idx_mst_stock_item_parent ON mst_stock_item(parent);
                     company_alterid INTEGER DEFAULT 0,
                     last_alter_id_master INTEGER DEFAULT 0,
                     last_alter_id_transaction INTEGER DEFAULT 0,
+                    books_from TEXT DEFAULT '',
+                    books_to TEXT DEFAULT '',
                     last_sync_at TEXT,
                     last_sync_type TEXT,
                     sync_count INTEGER DEFAULT 0,
@@ -848,6 +889,16 @@ CREATE INDEX IF NOT EXISTS idx_mst_stock_item_parent ON mst_stock_item(parent);
                     updated_at TEXT DEFAULT CURRENT_TIMESTAMP
                 )
             ''')
+            
+            # Add books_from and books_to columns if they don't exist (for existing tables)
+            try:
+                await conn.execute("ALTER TABLE company_config ADD COLUMN books_from TEXT DEFAULT ''")
+            except:
+                pass
+            try:
+                await conn.execute("ALTER TABLE company_config ADD COLUMN books_to TEXT DEFAULT ''")
+            except:
+                pass
             
             # Create _diff table for incremental sync (GUID + AlterID comparison)
             await conn.execute('''
@@ -875,7 +926,7 @@ CREATE INDEX IF NOT EXISTS idx_mst_stock_item_parent ON mst_stock_item(parent);
 
     async def update_company_config(self, company_name: str, company_guid: str = "", company_alterid: int = 0,
                                      last_alter_id_master: int = 0, last_alter_id_transaction: int = 0,
-                                     sync_type: str = "full") -> None:
+                                     sync_type: str = "full", books_from: str = "", books_to: str = "") -> None:
         """Update or insert company config record"""
         conn = await self._get_connection()
         try:
@@ -897,23 +948,25 @@ CREATE INDEX IF NOT EXISTS idx_mst_stock_item_parent ON mst_stock_item(parent);
                         company_alterid = CASE WHEN ? > 0 THEN ? ELSE company_alterid END,
                         last_alter_id_master = ?,
                         last_alter_id_transaction = ?,
+                        books_from = COALESCE(NULLIF(?, ''), books_from),
+                        books_to = COALESCE(NULLIF(?, ''), books_to),
                         last_sync_at = ?,
                         last_sync_type = ?,
                         sync_count = ?,
                         updated_at = ?
                     WHERE company_name = ?
                 ''', (company_guid, company_alterid, company_alterid, last_alter_id_master, 
-                      last_alter_id_transaction, now, sync_type, sync_count, now, company_name))
+                      last_alter_id_transaction, books_from, books_to, now, sync_type, sync_count, now, company_name))
                 logger.info(f"Updated company config for: {company_name} (GUID: {company_guid})")
             else:
                 # Insert new record
                 await conn.execute('''
                     INSERT INTO company_config 
                     (company_name, company_guid, company_alterid, last_alter_id_master, 
-                     last_alter_id_transaction, last_sync_at, last_sync_type, sync_count, created_at, updated_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
+                     last_alter_id_transaction, books_from, books_to, last_sync_at, last_sync_type, sync_count, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
                 ''', (company_name, company_guid, company_alterid, last_alter_id_master,
-                      last_alter_id_transaction, now, sync_type, now, now))
+                      last_alter_id_transaction, books_from, books_to, now, sync_type, now, now))
                 logger.info(f"New company added: {company_name} (GUID: {company_guid}, AlterID: {company_alterid})")
             
             await conn.commit()
@@ -925,12 +978,77 @@ CREATE INDEX IF NOT EXISTS idx_mst_stock_item_parent ON mst_stock_item(parent);
         try:
             rows = await self.fetch_all(
                 "SELECT company_name, company_guid, company_alterid, last_alter_id_master, "
-                "last_alter_id_transaction, last_sync_at, sync_count FROM company_config ORDER BY company_name"
+                "last_alter_id_transaction, books_from, books_to, last_sync_at, sync_count FROM company_config ORDER BY company_name"
             )
             return rows
         except Exception as e:
             logger.error(f"Failed to get synced companies: {e}")
             return []
+
+    async def delete_company_data(self, company_name: str) -> int:
+        """Delete all data for a specific company from all tables
+        
+        Args:
+            company_name: Name of the company to delete
+            
+        Returns:
+            Total number of rows deleted
+        """
+        conn = await self._get_connection()
+        total_deleted = 0
+        
+        try:
+            # Delete from all data tables (master + transaction)
+            for table in ALL_TABLES:
+                try:
+                    # Check if table exists
+                    cursor = await conn.execute(
+                        "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name=?",
+                        (table,)
+                    )
+                    row = await cursor.fetchone()
+                    if not row or row[0] == 0:
+                        continue
+                    
+                    # Check if _company column exists
+                    cursor = await conn.execute(f"PRAGMA table_info({table})")
+                    columns = await cursor.fetchall()
+                    column_names = [col[1] for col in columns]
+                    
+                    if "_company" in column_names:
+                        # Get count before delete
+                        cursor = await conn.execute(
+                            f"SELECT COUNT(*) FROM {table} WHERE _company = ?",
+                            (company_name,)
+                        )
+                        count_row = await cursor.fetchone()
+                        count = count_row[0] if count_row else 0
+                        
+                        # Delete company data
+                        await conn.execute(
+                            f"DELETE FROM {table} WHERE _company = ?",
+                            (company_name,)
+                        )
+                        total_deleted += count
+                        if count > 0:
+                            logger.debug(f"Deleted {count} rows from {table}")
+                except Exception as e:
+                    logger.warning(f"Error deleting from {table}: {e}")
+            
+            # Delete from company_config
+            await conn.execute(
+                "DELETE FROM company_config WHERE company_name = ?",
+                (company_name,)
+            )
+            total_deleted += 1
+            
+            await conn.commit()
+            logger.info(f"Deleted company '{company_name}': {total_deleted} total rows")
+            return total_deleted
+            
+        except Exception as e:
+            logger.error(f"Failed to delete company data: {e}")
+            raise
 
 
 # Global service instance

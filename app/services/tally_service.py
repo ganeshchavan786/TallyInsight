@@ -70,7 +70,7 @@ class TallyService:
     async def send_xml(self, xml_request: str) -> str:
         """Send XML request to Tally and get response"""
         try:
-            async with httpx.AsyncClient(timeout=60.0) as client:
+            async with httpx.AsyncClient(timeout=300.0) as client:
                 # Tally expects UTF-16 encoded XML
                 response = await client.post(
                     self.base_url,
@@ -140,26 +140,40 @@ class TallyService:
     
     async def get_open_companies(self) -> List[Dict[str, Any]]:
         """Get list of all open companies in Tally with their periods"""
-        # Use simple collection request that works reliably
+        # Use TDL report to get company info with period
         xml_request = '''<?xml version="1.0" encoding="UTF-16"?>
         <ENVELOPE>
             <HEADER>
                 <VERSION>1</VERSION>
                 <TALLYREQUEST>Export</TALLYREQUEST>
-                <TYPE>Collection</TYPE>
-                <ID>List of Companies</ID>
+                <TYPE>Data</TYPE>
+                <ID>CompanyListWithPeriod</ID>
             </HEADER>
             <BODY>
                 <DESC>
                     <STATICVARIABLES>
-                        <SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT>
+                        <SVEXPORTFORMAT>XML (Data Interchange)</SVEXPORTFORMAT>
                     </STATICVARIABLES>
                     <TDL>
                         <TDLMESSAGE>
-                            <COLLECTION NAME="List of Companies">
-                                <TYPE>Company</TYPE>
-                                <FETCH>NAME,BOOKSFROM,STARTINGFROM,COMPANYNUMBER</FETCH>
-                            </COLLECTION>
+                            <REPORT NAME="CompanyListWithPeriod">
+                                <FORMS>CompanyListForm</FORMS>
+                            </REPORT>
+                            <FORM NAME="CompanyListForm">
+                                <PARTS>CompanyListPart</PARTS>
+                            </FORM>
+                            <PART NAME="CompanyListPart">
+                                <LINES>CompanyLine</LINES>
+                                <REPEAT>CompanyLine : Company</REPEAT>
+                                <SCROLLED>Vertical</SCROLLED>
+                            </PART>
+                            <LINE NAME="CompanyLine">
+                                <FIELDS>FldName,FldBooksFrom,FldStartingFrom,FldNumber</FIELDS>
+                            </LINE>
+                            <FIELD NAME="FldName"><SET>$Name</SET></FIELD>
+                            <FIELD NAME="FldBooksFrom"><SET>$BooksFrom</SET></FIELD>
+                            <FIELD NAME="FldStartingFrom"><SET>$StartingFrom</SET></FIELD>
+                            <FIELD NAME="FldNumber"><SET>$CompanyNumber</SET></FIELD>
                         </TDLMESSAGE>
                     </TDL>
                 </DESC>
@@ -182,18 +196,13 @@ class TallyService:
         
         DEVELOPER NOTE:
         ---------------
-        Tally's "List of Companies" collection returns company data with period info.
-        The period is shown in Tally's Select Company screen as "1-Apr-18 to 31-Dec-23".
+        TDL Report returns data in format:
+        <FLDNAME>CompanyName</FLDNAME>
+        <FLDBOOKSFROM>20180401</FLDBOOKSFROM>
+        <FLDSTARTINGFROM>20180401</FLDSTARTINGFROM>
+        <FLDNUMBER>100001</FLDNUMBER>
         
-        XML Response Structure:
-        <COMPANY NAME="CompanyName">
-            <BOOKSFROM>20180401</BOOKSFROM>  <!-- YYYYMMDD format -->
-            <STARTINGFROM>20180401</STARTINGFROM>
-            <COMPANYNUMBER>100001</COMPANYNUMBER>
-        </COMPANY>
-        
-        If BOOKSFROM is empty, we use STARTINGFROM as fallback.
-        Period end (books_to) is typically current financial year end.
+        Date format from Tally: YYYYMMDD
         """
         companies = []
         try:
@@ -201,47 +210,107 @@ class TallyService:
             if xml_response.startswith('\ufeff'):
                 xml_response = xml_response[1:]
             
-            # Debug: Log first 2000 chars of response
-            logger.debug(f"Tally company list response: {xml_response[:2000]}")
+            # Debug: Log first 3000 chars of response
+            logger.info(f"Tally company list response: {xml_response[:3000]}")
             
             root = ET.fromstring(xml_response)
             
-            # Find all COMPANY elements with their attributes
+            # Try new TDL format first - look for FLDNAME elements
+            fld_names = root.findall(".//FLDNAME")
+            if fld_names:
+                # Parse TDL report format
+                fld_books_from = root.findall(".//FLDBOOKSFROM")
+                fld_starting_from = root.findall(".//FLDSTARTINGFROM")
+                fld_numbers = root.findall(".//FLDNUMBER")
+                
+                for i, name_elem in enumerate(fld_names):
+                    name = name_elem.text or ""
+                    if not name:
+                        continue
+                    
+                    books_from = fld_books_from[i].text if i < len(fld_books_from) and fld_books_from[i].text else ""
+                    starting_from = fld_starting_from[i].text if i < len(fld_starting_from) and fld_starting_from[i].text else ""
+                    company_number = fld_numbers[i].text if i < len(fld_numbers) and fld_numbers[i].text else ""
+                    
+                    # Use STARTINGFROM if BOOKSFROM is empty
+                    period_from = books_from or starting_from
+                    
+                    # Convert Tally date format (1-Apr-25 or YYYYMMDD) to YYYY-MM-DD
+                    period_from = self._convert_tally_date_to_iso(period_from)
+                    
+                    companies.append({
+                        "name": name,
+                        "number": company_number,
+                        "books_from": period_from,
+                        "books_to": ""
+                    })
+                
+                logger.info(f"Found {len(companies)} open companies in Tally (TDL format)")
+                return companies
+            
+            # Fallback: Try old COMPANY element format
             for company_elem in root.iter("COMPANY"):
                 name = company_elem.get("NAME", "")
                 if not name:
                     continue
                 
-                # Get period info from child elements
-                books_from = ""
-                starting_from = ""
-                company_number = ""
-                
-                for child in company_elem:
-                    tag = child.tag.upper()
-                    text = child.text or ""
-                    if tag == "BOOKSFROM":
-                        books_from = text
-                    elif tag == "STARTINGFROM":
-                        starting_from = text
-                    elif tag == "COMPANYNUMBER":
-                        company_number = text
-                
-                # Use STARTINGFROM if BOOKSFROM is empty
-                period_from = books_from or starting_from
-                
                 companies.append({
                     "name": name,
-                    "number": company_number,
-                    "books_from": period_from,
+                    "number": "",
+                    "books_from": "",
                     "books_to": ""
                 })
             
-            logger.info(f"Found {len(companies)} open companies in Tally")
+            logger.info(f"Found {len(companies)} open companies in Tally (fallback format)")
             return companies
         except ET.ParseError as e:
             logger.error(f"XML parse error: {e}")
             return []
+    
+    def _convert_tally_date_to_iso(self, tally_date: str) -> str:
+        """Convert Tally date format to ISO format (YYYY-MM-DD)
+        
+        Tally formats:
+        - 1-Apr-25 (short year)
+        - 1-Apr-2025 (full year)
+        - 20250401 (YYYYMMDD)
+        """
+        if not tally_date:
+            return ""
+        
+        tally_date = tally_date.strip()
+        
+        # Handle YYYYMMDD format
+        if len(tally_date) == 8 and tally_date.isdigit():
+            return f"{tally_date[:4]}-{tally_date[4:6]}-{tally_date[6:8]}"
+        
+        # Handle D-Mon-YY or D-Mon-YYYY format
+        month_map = {
+            'jan': '01', 'feb': '02', 'mar': '03', 'apr': '04',
+            'may': '05', 'jun': '06', 'jul': '07', 'aug': '08',
+            'sep': '09', 'oct': '10', 'nov': '11', 'dec': '12'
+        }
+        
+        try:
+            parts = tally_date.split('-')
+            if len(parts) == 3:
+                day = parts[0].zfill(2)
+                month = month_map.get(parts[1].lower()[:3], '01')
+                year = parts[2]
+                
+                # Handle 2-digit year
+                if len(year) == 2:
+                    year_int = int(year)
+                    if year_int > 50:
+                        year = f"19{year}"
+                    else:
+                        year = f"20{year}"
+                
+                return f"{year}-{month}-{day}"
+        except:
+            pass
+        
+        return tally_date
     
     def _parse_company_list_simple(self, xml_response: str) -> List[Dict[str, Any]]:
         """Parse company list from XML response

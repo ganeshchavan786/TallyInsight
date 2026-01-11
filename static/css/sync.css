@@ -656,3 +656,197 @@
 .card-body {
     padding: 20px;
 }
+
+/* Synced Company List */
+.synced-company-list {
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.synced-company-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.synced-company-item:last-child {
+    border-bottom: none;
+}
+
+.synced-company-item:hover {
+    background: var(--primary-light);
+}
+
+.synced-company-info {
+    flex: 1;
+}
+
+.synced-company-name {
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+}
+
+.synced-company-meta {
+    display: flex;
+    gap: 16px;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+.synced-company-meta span {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.synced-company-meta i {
+    font-size: 0.7rem;
+}
+
+.synced-company-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+/* Dropdown Menu */
+.dropdown {
+    position: relative;
+    display: inline-block;
+}
+
+.dropdown-toggle {
+    padding: 6px 10px !important;
+}
+
+.dropdown-menu {
+    position: absolute;
+    right: 0;
+    top: 100%;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow: var(--shadow-lg);
+    min-width: 180px;
+    z-index: 100;
+    display: none;
+    margin-top: 4px;
+}
+
+.dropdown-menu.show {
+    display: block;
+}
+
+.dropdown-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 16px;
+    color: var(--text-primary);
+    text-decoration: none;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.dropdown-item:hover {
+    background: var(--bg-hover);
+}
+
+.dropdown-item i {
+    width: 16px;
+    color: var(--text-muted);
+}
+
+.dropdown-item:first-child {
+    border-radius: 8px 8px 0 0;
+}
+
+.dropdown-item:last-child {
+    border-radius: 0 0 8px 8px;
+}
+
+.dropdown-divider {
+    height: 1px;
+    background: var(--border);
+    margin: 4px 0;
+}
+
+.dropdown-item.text-danger {
+    color: var(--danger);
+}
+
+.dropdown-item.text-danger:hover {
+    background: var(--danger-light);
+}
+
+.dropdown-item.text-danger i {
+    color: var(--danger);
+}
+
+/* Circular Progress Bar */
+.circular-progress {
+    position: relative;
+    width: 48px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.circular-progress svg {
+    transform: rotate(-90deg);
+    width: 48px;
+    height: 48px;
+}
+
+.circular-progress .progress-bg {
+    fill: none;
+    stroke: var(--border);
+    stroke-width: 4;
+}
+
+.circular-progress .progress-bar {
+    fill: none;
+    stroke: var(--primary);
+    stroke-width: 4;
+    stroke-linecap: round;
+    stroke-dasharray: 126;
+    stroke-dashoffset: 126;
+    transition: stroke-dashoffset 0.3s ease;
+}
+
+.circular-progress .progress-text {
+    position: absolute;
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--primary);
+}
+
+/* Syncing state for company cards */
+.synced-company-item.syncing .synced-company-actions .btn,
+.synced-company-item.syncing .synced-company-actions .dropdown {
+    display: none;
+}
+
+.company-item.syncing .company-actions .btn {
+    display: none;
+}
+
+.company-item.syncing .circular-progress,
+.synced-company-item.syncing .circular-progress {
+    display: flex;
+}
+
+/* New Company Item (without checkbox) */
+.company-item.new-company {
+    padding-left: 20px;
+}
+
+.company-item.new-company .company-info {
+    flex: 1;
+}

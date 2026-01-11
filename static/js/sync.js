@@ -22,6 +22,252 @@ function switchTab(tabName) {
     }
 }
 
+// Load Synced Companies - Show already synced companies with Dashboard/Audit links
+async function loadSyncedCompanies() {
+    const list = document.getElementById('synced-company-list');
+    if (!list) return;
+    
+    list.innerHTML = '<div class="loading"><i class="fas fa-spinner fa-spin"></i> Loading...</div>';
+    
+    try {
+        const syncedCompanies = await apiCall('/api/data/synced-companies');
+        
+        if (!syncedCompanies.companies || syncedCompanies.companies.length === 0) {
+            list.innerHTML = '<div class="empty-state"><i class="fas fa-inbox"></i><p>No synced companies yet</p><p class="text-muted">Sync a company to see it here</p></div>';
+            return;
+        }
+        
+        // Store synced companies data globally for sync functions
+        window.syncedCompaniesData = {};
+        
+        list.innerHTML = syncedCompanies.companies.map(company => {
+            const lastSync = company.last_sync_at ? formatDateTimeShort(company.last_sync_at) : 'Never';
+            const syncCount = company.sync_count || 0;
+            const companyId = company.company_name.replace(/[^a-zA-Z0-9]/g, '_');
+            const booksFrom = company.books_from || '';
+            const booksTo = company.books_to || '';
+            
+            // Store period for sync functions
+            window.syncedCompaniesData[company.company_name] = {
+                books_from: booksFrom,
+                books_to: booksTo
+            };
+            
+            return `
+                <div class="synced-company-item" id="synced-${companyId}" onclick="goToCompanyDashboard('${company.company_name}')">
+                    <div class="synced-company-info">
+                        <div class="synced-company-name">${company.company_name}</div>
+                        <div class="synced-company-meta">
+                            <span><i class="fas fa-sync"></i> ${syncCount} syncs</span>
+                            <span><i class="fas fa-clock"></i> ${lastSync}</span>
+                            ${booksFrom ? `<span><i class="fas fa-calendar"></i> ${formatDateDisplay(booksFrom)} - ${formatDateDisplay(booksTo)}</span>` : ''}
+                        </div>
+                    </div>
+                    <div class="synced-company-actions">
+                        <div class="circular-progress" id="progress-${companyId}" style="display: none;" onclick="event.stopPropagation();">
+                            <svg viewBox="0 0 44 44">
+                                <circle class="progress-bg" cx="22" cy="22" r="20"></circle>
+                                <circle class="progress-bar" cx="22" cy="22" r="20"></circle>
+                            </svg>
+                            <span class="progress-text">0%</span>
+                        </div>
+                        <button class="btn btn-sm btn-outline" onclick="event.stopPropagation(); goToCompanyDashboard('${company.company_name}')" title="Dashboard">
+                            <i class="fas fa-chart-bar"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline" onclick="event.stopPropagation(); goToCompanyAudit('${company.company_name}')" title="Audit">
+                            <i class="fas fa-history"></i>
+                        </button>
+                        <button class="btn btn-sm btn-success" onclick="event.stopPropagation(); syncCompanyFull('${company.company_name}')" title="Full Sync">
+                            <i class="fas fa-sync"></i>
+                        </button>
+                        <div class="dropdown" onclick="event.stopPropagation();">
+                            <button class="btn btn-sm btn-outline dropdown-toggle" onclick="toggleDropdown('${companyId}')">
+                                <i class="fas fa-ellipsis-v"></i>
+                            </button>
+                            <div class="dropdown-menu" id="dropdown-${companyId}">
+                                <a class="dropdown-item" onclick="closeAllDropdowns(); incrementalSyncCompany('${company.company_name}')">
+                                    <i class="fas fa-bolt"></i> Incremental Sync
+                                </a>
+                                <a class="dropdown-item" onclick="closeAllDropdowns(); resyncCompany('${company.company_name}')">
+                                    <i class="fas fa-redo"></i> Re-sync All Data
+                                </a>
+                                <div class="dropdown-divider"></div>
+                                <a class="dropdown-item text-danger" onclick="closeAllDropdowns(); deleteCompany('${company.company_name}')">
+                                    <i class="fas fa-trash"></i> Delete Company
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    } catch (error) {
+        list.innerHTML = `<div class="empty-state"><i class="fas fa-exclamation-triangle"></i><p>Error: ${error.message}</p></div>`;
+    }
+}
+
+// Format date time short
+function formatDateTimeShort(dateStr) {
+    if (!dateStr) return '--';
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) + ' ' + 
+           date.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+}
+
+// Go to Company Dashboard
+function goToCompanyDashboard(companyName) {
+    window.location.href = `dashboard.html?company=${encodeURIComponent(companyName)}`;
+}
+
+// Go to Company Audit
+function goToCompanyAudit(companyName) {
+    window.location.href = `audit.html?company=${encodeURIComponent(companyName)}`;
+}
+
+// Toggle Dropdown Menu
+function toggleDropdown(companyId) {
+    const dropdown = document.getElementById(`dropdown-${companyId}`);
+    // Close all other dropdowns
+    document.querySelectorAll('.dropdown-menu.show').forEach(d => {
+        if (d.id !== `dropdown-${companyId}`) d.classList.remove('show');
+    });
+    dropdown.classList.toggle('show');
+}
+
+// Close all dropdowns
+function closeAllDropdowns() {
+    document.querySelectorAll('.dropdown-menu.show').forEach(d => d.classList.remove('show'));
+}
+
+// Close dropdowns when clicking outside
+document.addEventListener('click', (e) => {
+    if (!e.target.closest('.dropdown')) {
+        closeAllDropdowns();
+    }
+});
+
+// Full Sync for synced company
+async function syncCompanyFull(companyName) {
+    // Get stored period for this company
+    const companyData = window.syncedCompaniesData?.[companyName] || {};
+    const fromDate = companyData.books_from || '';
+    const toDate = companyData.books_to || '';
+    
+    const periodInfo = fromDate ? `\nPeriod: ${formatDateDisplay(fromDate)} to ${formatDateDisplay(toDate)}` : '\nPeriod: Auto-detect from Tally';
+    
+    if (!confirm(`⚠️ Full Sync for ${companyName}\n\nWarning: Existing data will be DELETED and fresh data will be synced from Tally.${periodInfo}\n\nMake sure "${companyName}" is selected in Tally before proceeding.\n\nAre you sure you want to continue?`)) return;
+    
+    showToast(`Starting Full Sync for ${companyName}...`, 'info');
+    showSyncProgress(companyName);
+    showCircularProgress(companyName);
+    
+    try {
+        // Use stored period or let backend auto-detect
+        let endpoint = `/api/sync/full?company=${encodeURIComponent(companyName)}`;
+        if (fromDate && toDate) {
+            endpoint += `&from_date=${fromDate}&to_date=${toDate}`;
+        }
+        
+        await apiCall(endpoint, { method: 'POST' });
+        showToast('Full Sync started!', 'success');
+        syncInterval = setInterval(updateSyncStatus, 1000);
+    } catch (error) {
+        showToast(`Sync failed: ${error.message}`, 'error');
+        hideSyncProgress();
+    }
+}
+
+// Incremental Sync for synced company
+async function incrementalSyncCompany(companyName) {
+    // Get stored period for this company
+    const companyData = window.syncedCompaniesData?.[companyName];
+    const fromDate = companyData?.books_from || '';
+    const toDate = companyData?.books_to || '';
+    
+    let periodInfo = 'Auto-detect from Tally';
+    if (fromDate && toDate) {
+        periodInfo = `${formatDate(fromDate)} to ${formatDate(toDate)}`;
+    }
+    
+    showToast(`Starting Incremental Sync for ${companyName}...`, 'info');
+    showSyncProgress(companyName);
+    showCircularProgress(companyName);
+    
+    try {
+        let url = `/api/sync/incremental?company=${encodeURIComponent(companyName)}`;
+        if (fromDate) url += `&from_date=${fromDate}`;
+        if (toDate) url += `&to_date=${toDate}`;
+        
+        await apiCall(url, { method: 'POST' });
+        showToast('Incremental Sync started!', 'success');
+        syncInterval = setInterval(updateSyncStatus, 1000);
+    } catch (error) {
+        showToast(`Sync failed: ${error.message}`, 'error');
+        hideSyncProgress();
+    }
+}
+
+// Re-sync all data for company
+async function resyncCompany(companyName) {
+    // Get stored period for this company
+    const companyData = window.syncedCompaniesData?.[companyName];
+    const fromDate = companyData?.books_from || '';
+    const toDate = companyData?.books_to || '';
+    
+    let periodInfo = 'Auto-detect from Tally';
+    if (fromDate && toDate) {
+        periodInfo = `${formatDate(fromDate)} to ${formatDate(toDate)}`;
+    }
+    
+    if (!confirm(`Re-sync ALL data for ${companyName}?\n\nThis will delete existing data and sync fresh.\nPeriod: ${periodInfo}\n\nMake sure "${companyName}" is selected in Tally.`)) return;
+    
+    showToast(`Re-syncing ${companyName}...`, 'info');
+    showSyncProgress(companyName);
+    showCircularProgress(companyName);
+    
+    try {
+        let url = `/api/sync/full?company=${encodeURIComponent(companyName)}`;
+        if (fromDate) url += `&from_date=${fromDate}`;
+        if (toDate) url += `&to_date=${toDate}`;
+        
+        await apiCall(url, { method: 'POST' });
+        showToast('Re-sync started!', 'success');
+        syncInterval = setInterval(updateSyncStatus, 1000);
+    } catch (error) {
+        showToast(`Re-sync failed: ${error.message}`, 'error');
+        hideSyncProgress();
+    }
+}
+
+// Delete Company
+async function deleteCompany(companyName) {
+    if (!confirm(`⚠️ Delete "${companyName}"?\n\nThis will permanently delete ALL synced data for this company from the database.\n\nThis action cannot be undone.\n\nAre you sure?`)) return;
+    
+    try {
+        await apiCall(`/api/data/company/${encodeURIComponent(companyName)}`, { method: 'DELETE' });
+        showToast(`Company "${companyName}" deleted successfully`, 'success');
+        loadSyncedCompanies();
+        loadCompanies();
+    } catch (error) {
+        showToast(`Delete failed: ${error.message}`, 'error');
+    }
+}
+
+// Show Sync Progress (now only updates hidden elements for status tracking)
+function showSyncProgress(companyName) {
+    // Hidden elements for status tracking only
+    const progressTitle = document.getElementById('progress-title');
+    if (progressTitle) progressTitle.textContent = `Syncing ${companyName}...`;
+}
+
+// Hide Sync Progress
+function hideSyncProgress() {
+    if (syncInterval) {
+        clearInterval(syncInterval);
+        syncInterval = null;
+    }
+}
+
 // Load Companies - Show all companies from Tally with sync status
 async function loadCompanies() {
     const list = document.getElementById('company-list');
@@ -49,29 +295,33 @@ async function loadCompanies() {
         
         list.innerHTML = newCompanies.map(company => {
             // Extract period from company name or use Tally data
-            // Company names often have period like "MATOSHRI ENTERPRISES 18-24" meaning 2018-2024
             const extractedPeriod = extractPeriodFromName(company.name);
             const fromDate = parseTallyDate(company.books_from) || extractedPeriod.from || '2025-04-01';
             const toDate = parseTallyDate(company.books_to) || extractedPeriod.to || '2026-03-31';
             companyPeriods[company.name] = { from: fromDate, to: toDate };
+            const companyId = company.name.replace(/[^a-zA-Z0-9]/g, '_');
             
             return `
-                <div class="company-item" data-company="${company.name}">
-                    <div class="company-checkbox" onclick="toggleCompany('${company.name}')">
-                        <i class="fas fa-check"></i>
-                    </div>
-                    <div class="company-info" onclick="toggleCompany('${company.name}')">
+                <div class="company-item new-company" id="new-${companyId}" data-company="${company.name}">
+                    <div class="company-info">
                         <div class="company-name-row">
                             <span class="company-name">${company.name}</span>
                             <span class="not-synced-badge">New</span>
                         </div>
                         <div class="company-period">
-                            <span class="period-display" id="period-${company.name.replace(/[^a-zA-Z0-9]/g, '_')}">
+                            <span class="period-display" id="period-${companyId}">
                                 ${formatDateDisplay(fromDate)} - ${formatDateDisplay(toDate)}
                             </span>
                         </div>
                     </div>
                     <div class="company-actions">
+                        <div class="circular-progress" id="new-progress-${companyId}" style="display: none;">
+                            <svg viewBox="0 0 44 44">
+                                <circle class="progress-bg" cx="22" cy="22" r="20"></circle>
+                                <circle class="progress-bar" cx="22" cy="22" r="20"></circle>
+                            </svg>
+                            <span class="progress-text">0%</span>
+                        </div>
                         <button class="btn btn-sm btn-outline" onclick="editPeriod('${company.name}')" title="Edit Period">
                             <i class="fas fa-pencil-alt"></i>
                         </button>
@@ -235,8 +485,7 @@ function savePeriod(companyName) {
 // Sync single company (Task 3 - Full Sync)
 async function syncCompany(companyName) {
     const period = companyPeriods[companyName];
-    const progressDiv = document.getElementById('sync-progress');
-    progressDiv.classList.add('active');
+    showCircularProgress(companyName);
     
     try {
         let endpoint = `/api/sync/full?company=${encodeURIComponent(companyName)}`;
@@ -251,7 +500,7 @@ async function syncCompany(companyName) {
         syncInterval = setInterval(updateSyncStatus, 1000);
     } catch (error) {
         showToast(`Sync failed: ${error.message}`, 'error');
-        progressDiv.classList.remove('active');
+        hideCircularProgress();
     }
 }
 
@@ -262,11 +511,9 @@ async function startSync(type) {
         return;
     }
     
-    const progressDiv = document.getElementById('sync-progress');
-    progressDiv.classList.add('active');
-    
     try {
         for (const company of selectedCompanies) {
+            showCircularProgress(company);
             const period = companyPeriods[company];
             let endpoint = `/api/sync/full?company=${encodeURIComponent(company)}`;
             if (period) {
@@ -281,7 +528,7 @@ async function startSync(type) {
         syncInterval = setInterval(updateSyncStatus, 1000);
     } catch (error) {
         showToast(`Sync failed: ${error.message}`, 'error');
-        progressDiv.classList.remove('active');
+        hideCircularProgress();
     }
 }
 
@@ -296,29 +543,127 @@ async function updateSyncStatus() {
         const currentTable = document.getElementById('current-table');
         const rowsProcessed = document.getElementById('rows-processed');
         
-        progressFill.style.width = `${status.progress}%`;
-        progressPercent.textContent = `${status.progress}%`;
-        progressTitle.textContent = `Syncing ${status.current_company || ''}`;
-        currentTable.textContent = status.current_table || 'Processing...';
-        rowsProcessed.textContent = `${status.rows_processed || 0} rows`;
+        // Round progress to whole number
+        const progress = Math.round(status.progress || 0);
+        
+        // Update main progress card
+        if (progressFill) progressFill.style.width = `${progress}%`;
+        if (progressPercent) progressPercent.textContent = `${progress}%`;
+        if (progressTitle) progressTitle.textContent = `Syncing ${status.current_company || ''}`;
+        if (currentTable) currentTable.textContent = status.current_table || 'Processing...';
+        if (rowsProcessed) rowsProcessed.textContent = `${formatNumber(status.rows_processed || 0)} rows`;
+        
+        // Update circular progress in company card
+        if (status.current_company) {
+            updateCircularProgress(status.current_company, progress);
+        }
         
         if (status.status === 'completed' || status.status === 'failed') {
             clearInterval(syncInterval);
+            syncInterval = null;
             
             if (status.status === 'completed') {
                 showToast('Sync completed successfully!', 'success');
+                if (progressPercent) progressPercent.textContent = '100%';
+                if (progressFill) progressFill.style.width = '100%';
+                if (status.current_company) {
+                    updateCircularProgress(status.current_company, 100);
+                }
             } else {
                 showToast(`Sync failed: ${status.error_message}`, 'error');
             }
             
             setTimeout(() => {
-                document.getElementById('sync-progress').classList.remove('active');
+                hideSyncProgress();
+                hideCircularProgress();
                 loadCompanies();
+                loadSyncedCompanies();
             }, 2000);
         }
     } catch (error) {
         console.error('Status check failed:', error);
     }
+}
+
+// Show circular progress in company card
+function showCircularProgress(companyName) {
+    const companyId = companyName.replace(/[^a-zA-Z0-9]/g, '_');
+    
+    // Try synced company card
+    const syncedCard = document.getElementById(`synced-${companyId}`);
+    if (syncedCard) {
+        syncedCard.classList.add('syncing');
+        const progress = document.getElementById(`progress-${companyId}`);
+        if (progress) {
+            progress.style.display = 'flex';
+            // Hide buttons
+            syncedCard.querySelectorAll('.synced-company-actions .btn, .synced-company-actions .dropdown').forEach(el => {
+                el.style.display = 'none';
+            });
+        }
+    }
+    
+    // Try new company card
+    const newCard = document.getElementById(`new-${companyId}`);
+    if (newCard) {
+        newCard.classList.add('syncing');
+        const progress = document.getElementById(`new-progress-${companyId}`);
+        if (progress) {
+            progress.style.display = 'flex';
+            // Hide buttons
+            newCard.querySelectorAll('.company-actions .btn').forEach(el => {
+                el.style.display = 'none';
+            });
+        }
+    }
+}
+
+// Update circular progress value
+function updateCircularProgress(companyName, percent) {
+    const companyId = companyName.replace(/[^a-zA-Z0-9]/g, '_');
+    
+    // Calculate stroke-dashoffset (126 is circumference of circle with r=20)
+    const circumference = 126;
+    const offset = circumference - (percent / 100) * circumference;
+    
+    // Update synced company progress
+    const syncedProgress = document.getElementById(`progress-${companyId}`);
+    if (syncedProgress) {
+        const bar = syncedProgress.querySelector('.progress-bar');
+        const text = syncedProgress.querySelector('.progress-text');
+        if (bar) bar.style.strokeDashoffset = offset;
+        if (text) text.textContent = `${percent}%`;
+    }
+    
+    // Update new company progress
+    const newProgress = document.getElementById(`new-progress-${companyId}`);
+    if (newProgress) {
+        const bar = newProgress.querySelector('.progress-bar');
+        const text = newProgress.querySelector('.progress-text');
+        if (bar) bar.style.strokeDashoffset = offset;
+        if (text) text.textContent = `${percent}%`;
+    }
+}
+
+// Hide all circular progress indicators
+function hideCircularProgress() {
+    // Reset synced company cards
+    document.querySelectorAll('.synced-company-item.syncing').forEach(card => {
+        card.classList.remove('syncing');
+        card.querySelectorAll('.circular-progress').forEach(p => p.style.display = 'none');
+        card.querySelectorAll('.synced-company-actions .btn, .synced-company-actions .dropdown').forEach(el => {
+            el.style.display = '';
+        });
+    });
+    
+    // Reset new company cards
+    document.querySelectorAll('.company-item.syncing').forEach(card => {
+        card.classList.remove('syncing');
+        card.querySelectorAll('.circular-progress').forEach(p => p.style.display = 'none');
+        card.querySelectorAll('.company-actions .btn').forEach(el => {
+            el.style.display = '';
+        });
+    });
 }
 
 // Cancel Sync
@@ -327,7 +672,8 @@ async function cancelSync() {
         await apiCall('/api/sync/cancel', { method: 'POST' });
         showToast('Sync cancelled', 'warning');
         clearInterval(syncInterval);
-        document.getElementById('sync-progress').classList.remove('active');
+        syncInterval = null;
+        hideCircularProgress();
     } catch (error) {
         showToast(`Cancel failed: ${error.message}`, 'error');
     }
@@ -480,7 +826,7 @@ async function checkTallyConnectionStatus() {
     }
 }
 
-// Save Tally Config
+// Save Tally Config and Test Connection
 async function saveTallyConfig() {
     const host = document.getElementById('tally-host').value;
     const port = document.getElementById('tally-port').value;
@@ -491,11 +837,28 @@ async function saveTallyConfig() {
     }
     
     try {
-        await apiCall('/api/config/tally', {
-            method: 'POST',
-            body: JSON.stringify({ server: host, port: parseInt(port) })
+        // Step 1: Save config
+        await apiCall('/api/config', {
+            method: 'PUT',
+            body: JSON.stringify({ 
+                tally: { 
+                    server: host, 
+                    port: parseInt(port) 
+                } 
+            })
         });
-        showToast('Tally configuration saved', 'success');
+        showToast('Configuration saved, testing connection...', 'info');
+        
+        // Step 2: Auto test connection
+        const result = await apiCall('/api/config/tally/test', { method: 'POST' });
+        
+        if (result.connected) {
+            showToast('Connection successful!', 'success');
+        } else {
+            showToast('Connection failed: ' + (result.error || 'Tally not responding'), 'error');
+        }
+        
+        // Step 3: Update status display
         checkTallyConnectionStatus();
     } catch (error) {
         showToast(`Save failed: ${error.message}`, 'error');
@@ -504,13 +867,10 @@ async function saveTallyConfig() {
 
 // Test Tally Connection
 async function testTallyConnection() {
-    const host = document.getElementById('tally-host').value;
-    const port = document.getElementById('tally-port').value;
-    
     showToast('Testing connection...', 'info');
     
     try {
-        const result = await apiCall(`/api/tally/test?server=${host}&port=${port}`);
+        const result = await apiCall('/api/config/tally/test', { method: 'POST' });
         
         if (result.connected) {
             showToast('Connection successful!', 'success');
@@ -530,6 +890,7 @@ async function testTallyConnection() {
 
 document.addEventListener('DOMContentLoaded', () => {
     loadCompanies();
+    loadSyncedCompanies();
     
     // Load saved settings
     const savedInterval = localStorage.getItem('syncIntervalMinutes');

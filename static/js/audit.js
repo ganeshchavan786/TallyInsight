@@ -1,9 +1,36 @@
 // Audit Page JavaScript
 
+let currentCompany = '';
+
+// Get company from URL parameter
+function getCompanyFromUrl() {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('company') || '';
+}
+
+// Initialize page with company
+function initAuditPage() {
+    currentCompany = getCompanyFromUrl();
+    
+    // Update page title with company name
+    if (currentCompany) {
+        document.getElementById('page-title').textContent = `${currentCompany} - Audit Trail`;
+        document.getElementById('page-subtitle').textContent = 'Track all data changes for this company';
+        document.title = `${currentCompany} - Audit Trail`;
+    }
+    
+    loadAuditStats();
+    loadAuditHistory();
+}
+
 // Load Audit Stats
 async function loadAuditStats() {
     try {
-        const stats = await apiCall('/api/audit/stats');
+        let endpoint = '/api/audit/stats';
+        if (currentCompany) {
+            endpoint += `?company=${encodeURIComponent(currentCompany)}`;
+        }
+        const stats = await apiCall(endpoint);
         
         document.getElementById('insert-count').textContent = formatNumber(stats.by_action?.INSERT || 0);
         document.getElementById('update-count').textContent = formatNumber(stats.by_action?.UPDATE || 0);
@@ -23,6 +50,7 @@ async function loadAuditHistory() {
         const action = document.getElementById('action-filter').value;
         let endpoint = '/api/audit/history?limit=50';
         if (action) endpoint += `&action=${action}`;
+        if (currentCompany) endpoint += `&company=${encodeURIComponent(currentCompany)}`;
         
         const data = await apiCall(endpoint);
         
@@ -79,6 +107,5 @@ async function restoreRecord(id) {
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
-    loadAuditStats();
-    loadAuditHistory();
+    initAuditPage();
 });

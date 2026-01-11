@@ -51,16 +51,25 @@ class QueueRequest(BaseModel):
 
 
 @router.post("/full")
-async def trigger_full_sync(background_tasks: BackgroundTasks, company: str = "", parallel: bool = False):
+async def trigger_full_sync(
+    background_tasks: BackgroundTasks, 
+    company: str = "", 
+    parallel: bool = False,
+    from_date: str = "",
+    to_date: str = ""
+):
     """Trigger full data synchronization
     
     Args:
         company: Company name to sync (empty = active company in Tally)
         parallel: If True, fetch all tables simultaneously (3-5x faster)
+        from_date: Start date for sync (YYYY-MM-DD). If empty, auto-detect from Tally.
+        to_date: End date for sync (YYYY-MM-DD). If empty, use current financial year end.
     """
     mode = "parallel" if parallel else "sequential"
-    logger.info(f"Full sync requested for company: {company or 'Default'} (mode={mode})")
-    background_tasks.add_task(sync_service.full_sync, company, parallel)
+    period_info = f", period={from_date} to {to_date}" if from_date or to_date else " (auto-detect period)"
+    logger.info(f"Full sync requested for company: {company or 'Default'} (mode={mode}){period_info}")
+    background_tasks.add_task(sync_service.full_sync, company, parallel, from_date, to_date)
     return {
         "status": "started",
         "message": f"Full sync started for {company or 'Default'} (mode={mode})"
@@ -68,13 +77,32 @@ async def trigger_full_sync(background_tasks: BackgroundTasks, company: str = ""
 
 
 @router.post("/incremental")
-async def trigger_incremental_sync(background_tasks: BackgroundTasks, company: str = ""):
-    """Trigger incremental data synchronization (only changed records)"""
-    logger.info(f"Incremental sync requested for company: {company or 'Default'}")
-    background_tasks.add_task(sync_service.incremental_sync, company)
+async def trigger_incremental_sync(
+    background_tasks: BackgroundTasks, 
+    company: str = "",
+    from_date: str = "",
+    to_date: str = ""
+):
+    """Trigger incremental data synchronization (only changed records)
+    
+    Args:
+        company: Company name to sync
+        from_date: Start date (YYYY-MM-DD). If empty, uses stored period.
+        to_date: End date (YYYY-MM-DD). If empty, uses stored period.
+    """
+    period_info = ""
+    if from_date and to_date:
+        period_info = f" (Period: {from_date} to {to_date})"
+    elif from_date or to_date:
+        period_info = f" (Partial period: from={from_date}, to={to_date})"
+    else:
+        period_info = " (Using stored period)"
+    
+    logger.info(f"Incremental sync requested for company: {company or 'Default'}{period_info}")
+    background_tasks.add_task(sync_service.incremental_sync, company, from_date, to_date)
     return {
         "status": "started",
-        "message": f"Incremental sync started for {company or 'Default'}"
+        "message": f"Incremental sync started for {company or 'Default'}{period_info}"
     }
 
 

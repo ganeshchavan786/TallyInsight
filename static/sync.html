@@ -17,8 +17,6 @@
         </a>
         <div class="navbar-nav">
             <a href="sync.html" class="nav-link active"><i class="fas fa-sync"></i> Sync</a>
-            <a href="dashboard.html" class="nav-link"><i class="fas fa-chart-bar"></i> Dashboard</a>
-            <a href="audit.html" class="nav-link"><i class="fas fa-history"></i> Audit</a>
         </div>
         <div class="navbar-status">
             <div class="status-badge" id="tally-status">
@@ -64,44 +62,24 @@
 
                 <div class="card">
                     <div class="card-header">
-                        <h2 class="card-title"><i class="fas fa-play"></i> Quick Sync</h2>
+                        <h2 class="card-title"><i class="fas fa-check-circle"></i> Synced Company List</h2>
+                        <button class="btn btn-outline btn-sm" onclick="loadSyncedCompanies()">
+                            <i class="fas fa-refresh"></i> Refresh
+                        </button>
                     </div>
-                    
-                    <div class="date-range">
-                        <div class="date-input">
-                            <label>From Date</label>
-                            <input type="date" id="from-date" value="2025-04-01">
-                        </div>
-                        <div class="date-input">
-                            <label>To Date</label>
-                            <input type="date" id="to-date" value="2026-03-31">
-                        </div>
+                    <div class="synced-company-list" id="synced-company-list">
+                        <div class="loading"><i class="fas fa-spinner fa-spin"></i> Loading...</div>
                     </div>
+                </div>
 
-                    <div class="btn-group">
-                        <button class="btn btn-primary btn-lg" onclick="startSync('full')">
-                            <i class="fas fa-sync"></i> Full Sync
-                        </button>
-                        <button class="btn btn-success btn-lg" onclick="startSync('incremental')">
-                            <i class="fas fa-bolt"></i> Incremental Sync
-                        </button>
-                    </div>
-
-                    <div class="sync-progress" id="sync-progress">
-                        <div class="progress-header">
-                            <span class="progress-title" id="progress-title">Syncing...</span>
-                            <span class="progress-percent" id="progress-percent">0%</span>
-                        </div>
-                        <div class="progress-bar">
-                            <div class="progress-fill" id="progress-fill" style="width: 0%"></div>
-                        </div>
-                        <div class="progress-info">
-                            <span id="current-table">Starting...</span>
-                            <span id="rows-processed">0 rows</span>
-                        </div>
-                        <button class="btn btn-danger" onclick="cancelSync()">
-                            <i class="fas fa-stop"></i> Cancel
-                        </button>
+                <!-- Hidden elements for sync status tracking (not displayed) -->
+                <div id="sync-progress-card" style="display: none;">
+                    <div id="sync-progress">
+                        <span id="progress-title"></span>
+                        <span id="progress-percent"></span>
+                        <div id="progress-fill"></div>
+                        <span id="current-table"></span>
+                        <span id="rows-processed"></span>
                     </div>
                 </div>
             </div>

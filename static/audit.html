@@ -17,8 +17,6 @@
         </a>
         <div class="navbar-nav">
             <a href="sync.html" class="nav-link"><i class="fas fa-sync"></i> Sync</a>
-            <a href="dashboard.html" class="nav-link"><i class="fas fa-chart-bar"></i> Dashboard</a>
-            <a href="audit.html" class="nav-link active"><i class="fas fa-history"></i> Audit</a>
         </div>
         <div class="navbar-status">
             <div class="status-badge" id="tally-status">
@@ -30,8 +28,15 @@
 
     <div class="container">
         <div class="page-header">
-            <h1 class="page-title">Audit Trail</h1>
-            <p class="page-subtitle">Track all data changes during sync operations</p>
+            <div class="page-header-left">
+                <a href="sync.html" class="btn btn-outline btn-back">
+                    <i class="fas fa-arrow-left"></i> Back
+                </a>
+                <div>
+                    <h1 class="page-title" id="page-title">Audit Trail</h1>
+                    <p class="page-subtitle" id="page-subtitle">Track all data changes during sync operations</p>
+                </div>
+            </div>
         </div>
 
         <!-- Stats Cards -->

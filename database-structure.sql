@@ -383,6 +383,24 @@ create table trn_attendance
  type_value decimal(17,2) not null default 0
 );
 
+-- Company Config Table (Multi-Company Support)
+create table company_config
+(
+ id INTEGER PRIMARY KEY AUTOINCREMENT,
+ company_name nvarchar(256) not null unique,
+ company_guid varchar(64) default '',
+ company_alterid int default 0,
+ last_alter_id_master int default 0,
+ last_alter_id_transaction int default 0,
+ books_from varchar(20) default '',
+ books_to varchar(20) default '',
+ last_sync_at datetime,
+ last_sync_type varchar(20),
+ sync_count int default 0,
+ created_at datetime default CURRENT_TIMESTAMP,
+ updated_at datetime default CURRENT_TIMESTAMP
+);
+
 -- Sync History Table
 create table sync_history
 (
@@ -394,6 +412,7 @@ create table sync_history
  rows_processed int not null default 0,
  duration_seconds int not null default 0,
  error_message nvarchar(1024),
+ company_name nvarchar(256) default '',
  created_at datetime default CURRENT_TIMESTAMP
 );
 

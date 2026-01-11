@@ -53,7 +53,8 @@ DEVELOPER NOTES:
 
 import asyncio
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
+from dateutil.relativedelta import relativedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -107,12 +108,14 @@ class SyncService:
         return False
     
     @timed
-    async def full_sync(self, company: str = "", parallel: bool = False) -> Dict[str, Any]:
+    async def full_sync(self, company: str = "", parallel: bool = False, from_date: str = "", to_date: str = "") -> Dict[str, Any]:
         """Perform full data synchronization for a specific company
         
         Args:
             company: Company name to sync (empty = active company in Tally)
             parallel: If True, fetch all tables from Tally simultaneously (3-5x faster)
+            from_date: Start date for sync (YYYY-MM-DD). If empty, auto-detect from Tally.
+            to_date: End date for sync (YYYY-MM-DD). If empty, use current financial year end.
         """
         if self.status == SyncStatus.RUNNING:
             return {"error": "Sync already in progress"}
@@ -127,8 +130,22 @@ class SyncService:
         if company:
             config.tally.company = company
         
+        # Auto-detect period from Tally if not provided
+        if not from_date or not to_date:
+            detected_period = await self._get_company_period(self.current_company)
+            if detected_period:
+                from_date = from_date or detected_period.get("from_date", "")
+                to_date = to_date or detected_period.get("to_date", "")
+                logger.info(f"Auto-detected period for {self.current_company}: {from_date} to {to_date}")
+        
+        # Update config with detected/provided dates
+        if from_date:
+            config.tally.from_date = from_date
+        if to_date:
+            config.tally.to_date = to_date
+        
         logger.info(f"Starting full sync for company: {self.current_company or 'Default'}")
-        logger.info(f"Config company set to: {config.tally.company}")
+        logger.info(f"Config: company={config.tally.company}, from={config.tally.from_date}, to={config.tally.to_date}")
         
         try:
             # Connect to database
@@ -216,8 +233,14 @@ class SyncService:
             await database_service.disconnect()
     
     @timed
-    async def incremental_sync(self, company: str = "") -> Dict[str, Any]:
-        """Perform incremental data synchronization using GUID+AlterID diff comparison (Node.js style)"""
+    async def incremental_sync(self, company: str = "", from_date: str = "", to_date: str = "") -> Dict[str, Any]:
+        """Perform incremental data synchronization using GUID+AlterID diff comparison (Node.js style)
+        
+        Args:
+            company: Company name to sync (empty = active company in Tally)
+            from_date: Start date for sync (YYYY-MM-DD). If empty, use stored period.
+            to_date: End date for sync (YYYY-MM-DD). If empty, use stored period.
+        """
         if self.status == SyncStatus.RUNNING:
             return {"error": "Sync already in progress"}
         
@@ -230,6 +253,20 @@ class SyncService:
         # Set company in config for Tally requests
         if company:
             config.tally.company = company
+        
+        # Auto-detect period from database or Tally if not provided
+        if not from_date or not to_date:
+            detected_period = await self._get_company_period(self.current_company)
+            if detected_period:
+                from_date = from_date or detected_period.get("from_date", "")
+                to_date = to_date or detected_period.get("to_date", "")
+                logger.info(f"Using period for {self.current_company}: {from_date} to {to_date}")
+        
+        # Update config with detected/provided dates
+        if from_date:
+            config.tally.from_date = from_date
+        if to_date:
+            config.tally.to_date = to_date
         
         logger.info(f"Starting incremental sync for company: {self.current_company or 'Default'}")
         logger.info(f"Config company set to: {config.tally.company}")
@@ -588,6 +625,60 @@ class SyncService:
             logger.error(f"Failed to update last_alterid: {e}")
     
     
+    async def _get_company_period(self, company_name: str) -> Optional[Dict[str, str]]:
+        """Get company period from Tally or database
+        
+        Returns:
+            Dict with from_date and to_date in YYYY-MM-DD format
+        """
+        try:
+            # First try to get from database (company_config table)
+            await database_service.connect()
+            result = await database_service.fetch_one(
+                "SELECT books_from, books_to FROM company_config WHERE company_name = ?",
+                (company_name,)
+            )
+            if result and result.get("books_from"):
+                return {
+                    "from_date": result.get("books_from", ""),
+                    "to_date": result.get("books_to", "")
+                }
+            
+            # If not in database, get from Tally
+            companies = await tally_service.get_open_companies()
+            for company in companies:
+                if company.get("name") == company_name:
+                    books_from = company.get("books_from", "")
+                    if books_from:
+                        # Convert Tally date format (YYYYMMDD) to YYYY-MM-DD
+                        from_date = self._convert_tally_date(books_from)
+                        # Default to_date: current financial year end (March 31)
+                        from datetime import datetime
+                        current_year = datetime.now().year
+                        current_month = datetime.now().month
+                        # If after March, use next year's March 31
+                        if current_month > 3:
+                            to_date = f"{current_year + 1}-03-31"
+                        else:
+                            to_date = f"{current_year}-03-31"
+                        
+                        return {
+                            "from_date": from_date,
+                            "to_date": to_date
+                        }
+            
+            logger.warning(f"Could not detect period for company: {company_name}")
+            return None
+        except Exception as e:
+            logger.error(f"Failed to get company period: {e}")
+            return None
+    
+    def _convert_tally_date(self, tally_date: str) -> str:
+        """Convert Tally date format (YYYYMMDD) to YYYY-MM-DD"""
+        if len(tally_date) == 8:
+            return f"{tally_date[:4]}-{tally_date[4:6]}-{tally_date[6:8]}"
+        return tally_date
+
     async def _upsert_rows(self, table_name: str, rows: List[Dict]) -> int:
         """Insert or replace rows (upsert for incremental sync)"""
         if not rows:
@@ -690,8 +781,55 @@ class SyncService:
             else:
                 logger.info(f"  {table_name}: imported 0 rows")
     
+    def _generate_date_chunks(self, from_date: str, to_date: str, chunk_months: int = 6) -> List[tuple]:
+        """Generate date chunks for large period sync
+        
+        Args:
+            from_date: Start date (YYYY-MM-DD)
+            to_date: End date (YYYY-MM-DD)
+            chunk_months: Number of months per chunk (default 6)
+            
+        Returns:
+            List of (chunk_from, chunk_to) tuples
+        """
+        chunks = []
+        try:
+            start = datetime.strptime(from_date, "%Y-%m-%d")
+            end = datetime.strptime(to_date, "%Y-%m-%d")
+            
+            # Calculate total months
+            total_months = (end.year - start.year) * 12 + (end.month - start.month)
+            
+            # If period is 12 months or less, no chunking needed
+            if total_months <= 12:
+                return [(from_date, to_date)]
+            
+            logger.info(f"Period is {total_months} months, splitting into {chunk_months}-month chunks")
+            
+            current_start = start
+            while current_start < end:
+                current_end = current_start + relativedelta(months=chunk_months) - timedelta(days=1)
+                if current_end > end:
+                    current_end = end
+                
+                chunks.append((
+                    current_start.strftime("%Y-%m-%d"),
+                    current_end.strftime("%Y-%m-%d")
+                ))
+                current_start = current_end + timedelta(days=1)
+            
+            logger.info(f"Generated {len(chunks)} chunks: {[(c[0], c[1]) for c in chunks]}")
+            return chunks
+            
+        except Exception as e:
+            logger.error(f"Error generating date chunks: {e}")
+            return [(from_date, to_date)]
+    
     async def _sync_transaction_data(self, parallel: bool = False) -> None:
         """Sync all transaction data tables
+        
+        For periods > 1 year, syncs in 3-month chunks to avoid Tally timeout.
+        Includes rate limiting (1 sec delay between chunks) to reduce Tally load.
         
         Args:
             parallel: If True, fetch all tables from Tally simultaneously (faster)
@@ -700,6 +838,14 @@ class SyncService:
         transaction_tables = xml_builder.get_transaction_tables()
         total_tables = len(master_tables) + len(transaction_tables)
         start_idx = len(master_tables)
+        
+        # Get current sync period
+        from_date = config.tally.from_date
+        to_date = config.tally.to_date
+        
+        # Generate date chunks (3-month chunks for periods > 1 year)
+        # Smaller chunks = less Tally load, more stable sync
+        date_chunks = self._generate_date_chunks(from_date, to_date, chunk_months=3)
         
         if parallel:
             await self._sync_tables_parallel(transaction_tables, start_idx, total_tables, "transaction")
@@ -713,11 +859,29 @@ class SyncService:
                 self.progress = int(((len(master_tables) + i) / total_tables) * 100)
                 
                 try:
-                    rows = await self._extract_table_data(table_config)
-                    if rows:
-                        count = await database_service.bulk_insert(table_name, rows, self.current_company)
-                        self.rows_processed += count
-                        logger.info(f"  {table_name}: imported {count} rows for {self.current_company}")
+                    total_rows = 0
+                    
+                    # Sync each chunk separately
+                    for chunk_idx, (chunk_from, chunk_to) in enumerate(date_chunks):
+                        if self._cancel_requested:
+                            return
+                        
+                        if len(date_chunks) > 1:
+                            self.current_table = f"{table_name} (chunk {chunk_idx + 1}/{len(date_chunks)}: {chunk_from} to {chunk_to})"
+                            logger.info(f"  {table_name}: fetching chunk {chunk_idx + 1}/{len(date_chunks)} ({chunk_from} to {chunk_to})")
+                        
+                        rows = await self._extract_table_data_with_dates(table_config, chunk_from, chunk_to)
+                        if rows:
+                            count = await database_service.bulk_insert(table_name, rows, self.current_company)
+                            self.rows_processed += count
+                            total_rows += count
+                        
+                        # Rate limiting: Give Tally breathing room between chunks
+                        if len(date_chunks) > 1 and chunk_idx < len(date_chunks) - 1:
+                            await asyncio.sleep(2)  # 2 second delay between chunks
+                    
+                    if total_rows > 0:
+                        logger.info(f"  {table_name}: imported {total_rows} rows for {self.current_company}")
                     else:
                         logger.info(f"  {table_name}: imported 0 rows")
                 except Exception as e:
@@ -750,6 +914,44 @@ class SyncService:
             return rows
         except Exception as e:
             logger.error(f"Failed to extract {table_name}: {e}")
+            return []
+    
+    async def _extract_table_data_with_dates(self, table_config: Dict, from_date: str, to_date: str) -> List[Dict[str, Any]]:
+        """Extract data for a specific table from Tally with custom date range
+        
+        Args:
+            table_config: Table configuration from YAML
+            from_date: Start date (YYYY-MM-DD)
+            to_date: End date (YYYY-MM-DD)
+            
+        Returns:
+            List of row dictionaries
+        """
+        table_name = table_config.get("name", "")
+        fields = table_config.get("fields", [])
+        
+        if not fields:
+            return []
+        
+        try:
+            # Build XML request with custom date range
+            xml_request = xml_builder.build_export_xml(table_config, from_date=from_date, to_date=to_date)
+            
+            # Send request to Tally
+            response = await tally_service.send_xml(xml_request)
+            
+            # Debug: log response length
+            logger.debug(f"{table_name} ({from_date} to {to_date}): Response length = {len(response)} chars")
+            
+            # Parse response - extract field names from config
+            field_names = [f.get("name", "") for f in fields]
+            rows = self._parse_xml_response(response, field_names, fields)
+            
+            logger.debug(f"{table_name} ({from_date} to {to_date}): Parsed {len(rows)} rows")
+            
+            return rows
+        except Exception as e:
+            logger.error(f"Failed to extract {table_name} ({from_date} to {to_date}): {e}")
             return []
     
     def _parse_xml_response(self, xml_response: str, field_names: List[str], field_configs: List[Dict]) -> List[Dict[str, Any]]:
@@ -1175,14 +1377,16 @@ class SyncService:
             except Exception as e:
                 logger.warning(f"Could not get AlterIDs: {e}")
             
-            # Update company_config table with GUID and AlterID
+            # Update company_config table with GUID, AlterID, and Period
             await database_service.update_company_config(
                 company_name=company_name,
                 company_guid=company_guid,
                 company_alterid=company_alterid,
                 last_alter_id_master=alt_id_master,
                 last_alter_id_transaction=alt_id_transaction,
-                sync_type="full" if self.status != SyncStatus.RUNNING else "incremental"
+                sync_type="full" if self.status != SyncStatus.RUNNING else "incremental",
+                books_from=config.tally.from_date,
+                books_to=config.tally.to_date
             )
             
             # Insert config values (from_date/to_date are in tally config, not sync config)

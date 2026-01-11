@@ -17,13 +17,8 @@
         </a>
         <div class="navbar-nav">
             <a href="sync.html" class="nav-link"><i class="fas fa-sync"></i> Sync</a>
-            <a href="dashboard.html" class="nav-link active"><i class="fas fa-chart-bar"></i> Dashboard</a>
-            <a href="audit.html" class="nav-link"><i class="fas fa-history"></i> Audit</a>
         </div>
         <div class="navbar-status">
-            <select id="company-filter" class="company-select" onchange="filterByCompany()">
-                <option value="">All Companies</option>
-            </select>
             <div class="status-badge" id="tally-status">
                 <span class="dot"></span>
                 <span>Tally: Checking...</span>
@@ -33,8 +28,15 @@
 
     <div class="container">
         <div class="page-header">
-            <h1 class="page-title">Dashboard</h1>
-            <p class="page-subtitle">Overview of synced data from Tally</p>
+            <div class="page-header-left">
+                <a href="sync.html" class="btn btn-outline btn-back">
+                    <i class="fas fa-arrow-left"></i> Back
+                </a>
+                <div>
+                    <h1 class="page-title" id="page-title">Dashboard</h1>
+                    <p class="page-subtitle" id="page-subtitle">Overview of synced data from Tally</p>
+                </div>
+            </div>
         </div>
 
         <!-- Stats Cards -->
