@@ -179,11 +179,13 @@ class SQLiteDatabaseService(BaseDatabaseService):
         else:
             await self.execute(f"DELETE FROM {table_name}")
     
-    async def truncate_all_tables(self, company_name: str = None) -> None:
+    async def truncate_all_tables(self, company_name: str = None, company: str = None) -> None:
         """Truncate all tables"""
+        # Support both parameter names for backward compatibility
+        company_filter = company_name or company
         for table in ALL_TABLES:
             try:
-                await self.truncate_table(table, company_name)
+                await self.truncate_table(table, company_filter)
             except Exception as e:
                 logger.warning(f"Could not truncate {table}: {e}")
     

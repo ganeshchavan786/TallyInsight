@@ -571,7 +571,8 @@ async function updateSyncStatus() {
             updateCircularProgress(status.current_company, progress);
         }
         
-        if (status.status === 'completed' || status.status === 'failed') {
+        // Stop polling if sync is not running (idle, completed, failed, cancelled)
+        if (status.status !== 'running') {
             clearInterval(syncInterval);
             syncInterval = null;
             
@@ -582,16 +583,23 @@ async function updateSyncStatus() {
                 if (status.current_company) {
                     updateCircularProgress(status.current_company, 100);
                 }
-            } else {
+                setTimeout(() => {
+                    hideSyncProgress();
+                    hideCircularProgress();
+                    loadCompanies();
+                    loadSyncedCompanies();
+                }, 2000);
+            } else if (status.status === 'failed') {
                 showToast(`Sync failed: ${status.error_message}`, 'error');
-            }
-            
-            setTimeout(() => {
+                setTimeout(() => {
+                    hideSyncProgress();
+                    hideCircularProgress();
+                }, 2000);
+            } else if (status.status === 'idle') {
+                // Sync already finished or never started - just stop polling
                 hideSyncProgress();
                 hideCircularProgress();
-                loadCompanies();
-                loadSyncedCompanies();
-            }, 2000);
+            }
         }
     } catch (error) {
         console.error('Status check failed:', error);
