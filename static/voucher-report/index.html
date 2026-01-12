@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voucher Report - Tally Database Loader</title>
+    
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="logo">
+                <i class="fas fa-receipt"></i>
+                <span>Voucher Report</span>
+            </div>
+            
+            <nav>
+                <ul class="nav-menu">
+                    <li class="nav-item">
+                        <a href="#" class="nav-link active" data-view="vouchers">
+                            <i class="fas fa-file-invoice"></i>
+                            <span>All Vouchers</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="#" class="nav-link" data-view="sales">
+                            <i class="fas fa-shopping-cart"></i>
+                            <span>Sales</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="#" class="nav-link" data-view="purchase">
+                            <i class="fas fa-truck"></i>
+                            <span>Purchase</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="#" class="nav-link" data-view="payment">
+                            <i class="fas fa-money-bill-wave"></i>
+                            <span>Payment</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="#" class="nav-link" data-view="receipt">
+                            <i class="fas fa-hand-holding-usd"></i>
+                            <span>Receipt</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="#" class="nav-link" data-view="journal">
+                            <i class="fas fa-book"></i>
+                            <span>Journal</span>
+                        </a>
+                    </li>
+                </ul>
+                
+                <div class="nav-divider"></div>
+                
+                <ul class="nav-menu">
+                    <li class="nav-item">
+                        <a href="/dashboard.html" class="nav-link">
+                            <i class="fas fa-chart-bar"></i>
+                            <span>Dashboard</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="/sync.html" class="nav-link">
+                            <i class="fas fa-sync"></i>
+                            <span>Sync</span>
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+            
+            <div class="sidebar-footer">
+                <div class="company-info">
+                    <i class="fas fa-building"></i>
+                    <span id="currentCompany">Loading...</span>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Top Bar -->
+            <header class="top-bar">
+                <div class="search-box">
+                    <i class="fas fa-search"></i>
+                    <input type="text" id="globalSearch" placeholder="Search vouchers, party, narration...">
+                </div>
+                <div class="top-actions">
+                    <button class="btn btn-icon" onclick="refreshData()" title="Refresh">
+                        <i class="fas fa-sync-alt"></i>
+                    </button>
+                    <button class="btn btn-icon" onclick="exportToExcel()" title="Export Excel">
+                        <i class="fas fa-file-excel"></i>
+                    </button>
+                    <button class="btn btn-icon" onclick="printReport()" title="Print">
+                        <i class="fas fa-print"></i>
+                    </button>
+                </div>
+            </header>
+
+            <!-- Stats Cards -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-icon sales">
+                        <i class="fas fa-shopping-cart"></i>
+                    </div>
+                    <div class="stat-info">
+                        <span class="stat-value" id="totalSales">₹0</span>
+                        <span class="stat-label">Total Sales</span>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon purchase">
+                        <i class="fas fa-truck"></i>
+                    </div>
+                    <div class="stat-info">
+                        <span class="stat-value" id="totalPurchase">₹0</span>
+                        <span class="stat-label">Total Purchase</span>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon payment">
+                        <i class="fas fa-money-bill-wave"></i>
+                    </div>
+                    <div class="stat-info">
+                        <span class="stat-value" id="totalPayment">₹0</span>
+                        <span class="stat-label">Total Payment</span>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon receipt">
+                        <i class="fas fa-hand-holding-usd"></i>
+                    </div>
+                    <div class="stat-info">
+                        <span class="stat-value" id="totalReceipt">₹0</span>
+                        <span class="stat-label">Total Receipt</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Filters Section -->
+            <div class="filters-card">
+                <div class="filters-header">
+                    <h3><i class="fas fa-filter"></i> Filters</h3>
+                    <button class="btn btn-text" onclick="toggleFilters()">
+                        <i class="fas fa-chevron-down" id="filterToggleIcon"></i>
+                    </button>
+                </div>
+                <div class="filters-body" id="filtersBody">
+                    <div class="filter-row">
+                        <div class="filter-group">
+                            <label>From Date</label>
+                            <input type="date" id="fromDate" class="form-input">
+                        </div>
+                        <div class="filter-group">
+                            <label>To Date</label>
+                            <input type="date" id="toDate" class="form-input">
+                        </div>
+                        <div class="filter-group">
+                            <label>Voucher Type</label>
+                            <select id="voucherType" class="form-select">
+                                <option value="">All Types</option>
+                                <option value="Sales">Sales</option>
+                                <option value="Purchase">Purchase</option>
+                                <option value="Payment">Payment</option>
+                                <option value="Receipt">Receipt</option>
+                                <option value="Journal">Journal</option>
+                                <option value="Contra">Contra</option>
+                                <option value="Credit Note">Credit Note</option>
+                                <option value="Debit Note">Debit Note</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <label>Party Name</label>
+                            <input type="text" id="partyFilter" class="form-input" placeholder="Filter by party...">
+                        </div>
+                    </div>
+                    <div class="filter-actions">
+                        <button class="btn btn-primary" onclick="applyFilters()">
+                            <i class="fas fa-search"></i> Apply Filters
+                        </button>
+                        <button class="btn btn-secondary" onclick="resetFilters()">
+                            <i class="fas fa-redo"></i> Reset
+                        </button>
+                        <div class="quick-filters">
+                            <button class="btn btn-chip" onclick="setQuickFilter('today')">Today</button>
+                            <button class="btn btn-chip" onclick="setQuickFilter('week')">This Week</button>
+                            <button class="btn btn-chip" onclick="setQuickFilter('month')">This Month</button>
+                            <button class="btn btn-chip active" onclick="setQuickFilter('year')">This Year</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Vouchers Table -->
+            <div class="table-card">
+                <div class="table-header">
+                    <h3><i class="fas fa-list"></i> Voucher Transactions</h3>
+                    <div class="table-info">
+                        <span class="badge" id="voucherCount">0 vouchers</span>
+                        <select id="pageSize" class="form-select-sm" onchange="changePageSize()">
+                            <option value="25">25 per page</option>
+                            <option value="50" selected>50 per page</option>
+                            <option value="100">100 per page</option>
+                            <option value="200">200 per page</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="table-container">
+                    <table class="data-table" id="vouchersTable">
+                        <thead>
+                            <tr>
+                                <th class="sticky-col" data-sort="date">
+                                    Date <i class="fas fa-sort"></i>
+                                </th>
+                                <th data-sort="voucher_type">Type <i class="fas fa-sort"></i></th>
+                                <th data-sort="voucher_number">Voucher No.</th>
+                                <th data-sort="party_name">Party Name <i class="fas fa-sort"></i></th>
+                                <th class="text-right" data-sort="amount">Amount <i class="fas fa-sort"></i></th>
+                                <th>Narration</th>
+                                <th class="sticky-col-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="vouchersTableBody">
+                            <tr>
+                                <td colspan="7" class="loading-cell">
+                                    <div class="loader">
+                                        <i class="fas fa-spinner fa-spin"></i>
+                                        <span>Loading vouchers...</span>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                
+                <!-- Pagination -->
+                <div class="pagination-container">
+                    <div class="pagination-info">
+                        Showing <span id="showingFrom">0</span> to <span id="showingTo">0</span> of <span id="totalRecords">0</span> entries
+                    </div>
+                    <div class="pagination" id="pagination">
+                        <!-- Pagination buttons will be generated by JS -->
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Voucher Detail Modal -->
+    <div class="modal" id="voucherModal">
+        <div class="modal-backdrop" onclick="closeModal()"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-title">
+                    <span class="voucher-type-badge" id="modalVoucherType">Sales</span>
+                    <h2>Voucher #<span id="modalVoucherNumber"></span></h2>
+                </div>
+                <button class="btn btn-icon" onclick="closeModal()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <div class="modal-body">
+                <!-- Voucher Info -->
+                <div class="voucher-info-grid">
+                    <div class="info-item">
+                        <label>Date</label>
+                        <span id="modalDate"></span>
+                    </div>
+                    <div class="info-item">
+                        <label>Party</label>
+                        <span id="modalParty"></span>
+                    </div>
+                    <div class="info-item">
+                        <label>Reference No.</label>
+                        <span id="modalRefNo"></span>
+                    </div>
+                    <div class="info-item">
+                        <label>Reference Date</label>
+                        <span id="modalRefDate"></span>
+                    </div>
+                    <div class="info-item full-width">
+                        <label>Narration</label>
+                        <span id="modalNarration"></span>
+                    </div>
+                </div>
+                
+                <!-- Tabs -->
+                <div class="modal-tabs">
+                    <button class="tab-btn active" onclick="showModalTab('ledger')">
+                        <i class="fas fa-book"></i> Ledger Entries
+                    </button>
+                    <button class="tab-btn" onclick="showModalTab('inventory')">
+                        <i class="fas fa-boxes"></i> Items <span class="tab-count" id="itemCount">0</span>
+                    </button>
+                    <button class="tab-btn" onclick="showModalTab('bills')">
+                        <i class="fas fa-file-invoice-dollar"></i> Bills <span class="tab-count" id="billCount">0</span>
+                    </button>
+                    <button class="tab-btn" onclick="showModalTab('bank')">
+                        <i class="fas fa-university"></i> Bank <span class="tab-count" id="bankCount">0</span>
+                    </button>
+                </div>
+                
+                <!-- Tab Contents -->
+                <div class="tab-content active" id="ledgerTab">
+                    <table class="detail-table">
+                        <thead>
+                            <tr>
+                                <th>Ledger</th>
+                                <th class="text-right">Debit</th>
+                                <th class="text-right">Credit</th>
+                            </tr>
+                        </thead>
+                        <tbody id="ledgerEntries"></tbody>
+                        <tfoot>
+                            <tr class="total-row">
+                                <td><strong>Total</strong></td>
+                                <td class="text-right"><strong id="totalDebit">0.00</strong></td>
+                                <td class="text-right"><strong id="totalCredit">0.00</strong></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+                
+                <div class="tab-content" id="inventoryTab">
+                    <table class="detail-table">
+                        <thead>
+                            <tr>
+                                <th>Item</th>
+                                <th class="text-right">Qty</th>
+                                <th class="text-right">Rate</th>
+                                <th class="text-right">Amount</th>
+                                <th>Godown</th>
+                            </tr>
+                        </thead>
+                        <tbody id="inventoryItems"></tbody>
+                    </table>
+                </div>
+                
+                <div class="tab-content" id="billsTab">
+                    <table class="detail-table">
+                        <thead>
+                            <tr>
+                                <th>Bill Name</th>
+                                <th>Type</th>
+                                <th class="text-right">Amount</th>
+                            </tr>
+                        </thead>
+                        <tbody id="billAllocations"></tbody>
+                    </table>
+                </div>
+                
+                <div class="tab-content" id="bankTab">
+                    <table class="detail-table">
+                        <thead>
+                            <tr>
+                                <th>Type</th>
+                                <th>Instrument No.</th>
+                                <th>Date</th>
+                                <th>Bank</th>
+                                <th class="text-right">Amount</th>
+                            </tr>
+                        </thead>
+                        <tbody id="bankDetails"></tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="printVoucher()">
+                    <i class="fas fa-print"></i> Print
+                </button>
+                <button class="btn btn-primary" onclick="closeModal()">
+                    Close
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <script src="js/config.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>

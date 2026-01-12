@@ -70,6 +70,12 @@ static_path = Path(__file__).parent.parent / "static"
 if static_path.exists():
     app.mount("/static", StaticFiles(directory=str(static_path)), name="static")
 
+# Mount voucher-report static files (CSS, JS)
+voucher_report_path = static_path / "voucher-report"
+if voucher_report_path.exists():
+    app.mount("/voucher-report/css", StaticFiles(directory=str(voucher_report_path / "css")), name="voucher-css")
+    app.mount("/voucher-report/js", StaticFiles(directory=str(voucher_report_path / "js")), name="voucher-js")
+
 # Include routers
 app.include_router(sync_router, prefix="/api/sync", tags=["Sync"])
 app.include_router(data_router, prefix="/api/data", tags=["Data"])
@@ -123,6 +129,17 @@ async def old_dashboard():
     if html_path.exists():
         return FileResponse(str(html_path), media_type="text/html")
     return {"error": "Page not found"}
+
+
+@app.get("/voucher-report")
+@app.get("/voucher-report/")
+@app.get("/voucher-report/index.html")
+async def voucher_report_page():
+    """Serve advanced voucher report page"""
+    html_path = Path(__file__).parent.parent / "static" / "voucher-report" / "index.html"
+    if html_path.exists():
+        return FileResponse(str(html_path), media_type="text/html")
+    return {"error": "Voucher Report page not found"}
 
 
 @app.get("/api/info")
