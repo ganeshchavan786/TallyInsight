@@ -381,9 +381,14 @@ function extractPeriodFromName(companyName) {
     return { from: null, to: null };
 }
 
-// Parse Tally date format (e.g., "1-Apr-18 to 31-Mar-26" or "1-Apr-2025")
+// Parse Tally date format (e.g., "1-Apr-18 to 31-Mar-26" or "1-Apr-2025" or "2025-09-01")
 function parseTallyDate(dateStr) {
     if (!dateStr) return null;
+    
+    // Already in YYYY-MM-DD format - return as is
+    if (dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
+        return dateStr;
+    }
     
     // Handle format like "1-Apr-25 to 31-Mar-26" - extract just the date part
     const cleanDate = dateStr.split(' to ')[0].trim();
@@ -408,6 +413,14 @@ function parseTallyDate(dateStr) {
 // Format date for display
 function formatDateDisplay(dateStr) {
     if (!dateStr) return '--';
+    
+    // Handle YYYY-MM-DD format
+    if (dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
+        const [year, month, day] = dateStr.split('-');
+        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        return `${parseInt(day)} ${months[parseInt(month) - 1]} ${year}`;
+    }
+    
     const date = new Date(dateStr);
     if (isNaN(date.getTime())) return dateStr;
     return date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
