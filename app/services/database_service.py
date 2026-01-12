@@ -1052,4 +1052,11 @@ CREATE INDEX IF NOT EXISTS idx_mst_stock_item_parent ON mst_stock_item(parent);
 
 
 # Global service instance
-database_service = DatabaseService()
+# Uses factory to get appropriate database adapter based on config
+# Default: SQLite (backward compatible)
+try:
+    from .database import get_database_service
+    database_service = get_database_service()
+except ImportError:
+    # Fallback to SQLite if new module not available
+    database_service = DatabaseService()

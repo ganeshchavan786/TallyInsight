@@ -9,7 +9,14 @@ circuit_breaker:
   failure_threshold: 5
   recovery_timeout: 60
 database:
+  type: sqlite  # Options: sqlite, sqlserver, postgresql, mysql, mongodb
   path: ./tally.db
+  # For other databases, add these settings:
+  # host: localhost
+  # port: 5432
+  # database: tallydb
+  # username: user
+  # password: pass
 debug:
   enabled: false
   log_http_details: false
