@@ -81,12 +81,23 @@ async function loadTableStats() {
         
         const stats = await apiCall(endpoint);
         
-        const masterTables = ['mst_group', 'mst_ledger', 'mst_stock_group', 'mst_stock_item', 
-            'mst_stock_category', 'mst_godown', 'mst_uom', 'mst_vouchertype', 
-            'mst_cost_category', 'mst_cost_centre', 'mst_currency', 'mst_employee'];
+        // All 18 Master Tables
+        const masterTables = [
+            'mst_group', 'mst_ledger', 'mst_stock_item', 'mst_stock_category',
+            'mst_stock_group', 'mst_godown', 'mst_uom', 'mst_vouchertype',
+            'mst_cost_category', 'mst_cost_centre', 'mst_currency', 'mst_employee',
+            'mst_attendance_type', 'mst_payhead', 'mst_gst_effective_rate',
+            'mst_opening_batch_allocation', 'mst_opening_bill_allocation',
+            'mst_stockitem_standard_cost', 'mst_stockitem_standard_price'
+        ];
         
-        const transactionTables = ['trn_voucher', 'trn_accounting', 'trn_inventory', 
-            'trn_cost_centre', 'trn_bill', 'trn_batch'];
+        // All 14 Transaction Tables
+        const transactionTables = [
+            'trn_voucher', 'trn_accounting', 'trn_inventory', 'trn_batch',
+            'trn_cost_centre', 'trn_cost_category_centre', 'trn_cost_inventory_category_centre',
+            'trn_bill', 'trn_bank', 'trn_inventory_accounting',
+            'trn_employee', 'trn_payhead', 'trn_attendance', 'trn_closingstock_ledger'
+        ];
         
         renderTableGrid('master-tables', masterTables, stats);
         renderTableGrid('transaction-tables', transactionTables, stats);
