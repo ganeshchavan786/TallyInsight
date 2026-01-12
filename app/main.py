@@ -65,16 +65,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Mount static files
+# Mount static files (includes voucher-report subfolder)
 static_path = Path(__file__).parent.parent / "static"
 if static_path.exists():
     app.mount("/static", StaticFiles(directory=str(static_path)), name="static")
-
-# Mount voucher-report static files (CSS, JS)
-voucher_report_path = static_path / "voucher-report"
-if voucher_report_path.exists():
-    app.mount("/voucher-report/css", StaticFiles(directory=str(voucher_report_path / "css")), name="voucher-css")
-    app.mount("/voucher-report/js", StaticFiles(directory=str(voucher_report_path / "js")), name="voucher-js")
 
 # Include routers
 app.include_router(sync_router, prefix="/api/sync", tags=["Sync"])

@@ -432,8 +432,7 @@ function showModalTab(tabName) {
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
     
     document.getElementById(tabName + 'Tab').classList.add('active');
-    event.target.closest('.tab-btn')?.classList.add('active') || 
-        document.querySelector(`.tab-btn[onclick*="${tabName}"]`)?.classList.add('active');
+    document.querySelector(`.tab-btn[onclick*="${tabName}"]`)?.classList.add('active');
 }
 
 // Close Modal

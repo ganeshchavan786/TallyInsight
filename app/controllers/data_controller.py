@@ -125,6 +125,60 @@ async def get_vouchers(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/vouchers/{guid}/details")
+async def get_voucher_details(guid: str):
+    """Get voucher details including accounting entries, inventory, bills, and bank details"""
+    try:
+        await database_service.connect()
+        
+        # Get voucher header
+        voucher = await database_service.fetch_one(
+            "SELECT * FROM trn_voucher WHERE guid = ?", (guid,)
+        )
+        
+        if not voucher:
+            raise HTTPException(status_code=404, detail="Voucher not found")
+        
+        # Get accounting entries
+        entries = await database_service.fetch_all(
+            "SELECT * FROM trn_accounting WHERE guid = ?", (guid,)
+        )
+        
+        # Get inventory items
+        inventory = await database_service.fetch_all(
+            "SELECT * FROM trn_inventory WHERE guid = ?", (guid,)
+        )
+        
+        # Get bill allocations
+        bills = await database_service.fetch_all(
+            "SELECT * FROM trn_bill WHERE guid = ?", (guid,)
+        )
+        
+        # Get bank details
+        bank = await database_service.fetch_all(
+            "SELECT * FROM trn_bank WHERE guid = ?", (guid,)
+        )
+        
+        # Calculate totals
+        total_dr = sum(abs(float(e.get('amount', 0))) for e in entries if float(e.get('amount', 0)) < 0)
+        total_cr = sum(float(e.get('amount', 0)) for e in entries if float(e.get('amount', 0)) >= 0)
+        
+        return {
+            "voucher": voucher,
+            "entries": entries,
+            "inventory": inventory,
+            "bills": bills,
+            "bank": bank,
+            "total_dr": total_dr,
+            "total_cr": total_cr
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get voucher details: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/stock-items")
 async def get_stock_items(
     parent: Optional[str] = None,
