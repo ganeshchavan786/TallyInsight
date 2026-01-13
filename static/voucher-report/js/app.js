@@ -145,7 +145,7 @@ async function loadCompanies() {
 }
 
 // Change Company
-function changeCompany() {
+async function changeCompany() {
     const select = document.getElementById('companySelect');
     selectedCompany = select.value;
     document.getElementById('currentCompany').textContent = selectedCompany || 'All Companies';
@@ -155,6 +155,15 @@ function changeCompany() {
         const activeLink = document.querySelector('.submenu-link[data-outstanding].active');
         const type = activeLink ? activeLink.dataset.outstanding : 'receivable';
         loadOutstandingData(type);
+    } else if (currentView === 'ledger') {
+        // Clear current selection first
+        allLedgers = [];
+        document.getElementById('ledgerSearchInput').value = '';
+        document.getElementById('ledgerDropdown').style.display = 'none';
+        document.getElementById('ledgerTableBody').innerHTML = '<tr><td colspan="7" class="loading-cell">Select a ledger to view transactions</td></tr>';
+        // Reload ledger list for new company
+        await loadLedgerList();
+        showToast(`Loaded ${allLedgers.length} ledgers for ${selectedCompany}`, 'success');
     } else {
         loadVouchers();
     }
@@ -1119,4 +1128,340 @@ function filterOutstandingTable() {
             countEl.textContent = `${visibleCount} of ${totalCount} records`;
         }
     }
+}
+
+// ========== Ledger Report Functions ==========
+let selectedLedger = '';
+
+async function showLedgerView() {
+    currentView = 'ledger';
+    
+    // Update search placeholder
+    const searchInput = document.getElementById('globalSearch');
+    searchInput.value = '';
+    searchInput.placeholder = 'Search ledger transactions...';
+    
+    // Hide other sections
+    document.querySelector('.stats-grid').style.display = 'none';
+    document.querySelector('.filters-card').style.display = 'none';
+    document.querySelector('.table-card').style.display = 'none';
+    document.getElementById('outstandingSection').style.display = 'none';
+    document.getElementById('ledgerSection').style.display = 'block';
+    
+    // Initialize dates
+    initLedgerDates();
+    
+    // Load ledger list and wait for it
+    await loadLedgerList();
+    showToast(`Loaded ${allLedgers.length} ledgers`, 'success');
+}
+
+function initLedgerDates() {
+    const today = new Date();
+    const todayStr = today.toISOString().split('T')[0];
+    
+    // Set to_date to today
+    document.getElementById('ledgerToDate').value = todayStr;
+    
+    // Set from_date to start of financial year (April 1)
+    const year = today.getMonth() >= 3 ? today.getFullYear() : today.getFullYear() - 1;
+    document.getElementById('ledgerFromDate').value = `${year}-04-01`;
+}
+
+let allLedgers = [];
+
+async function loadLedgerList() {
+    try {
+        const response = await fetch(`/api/data/ledgers?company=${encodeURIComponent(selectedCompany)}`);
+        const result = await response.json();
+        
+        // Handle different response formats
+        allLedgers = (result.ledgers || result.data || result || []).map(l => l.name || l);
+        console.log(`Loaded ${allLedgers.length} ledgers`);
+    } catch (error) {
+        console.error('Failed to load ledgers:', error);
+        showToast('Failed to load ledger list', 'error');
+    }
+}
+
+function showLedgerDropdown() {
+    filterLedgerDropdown();
+}
+
+function filterLedgerDropdown() {
+    const input = document.getElementById('ledgerSearchInput');
+    const dropdown = document.getElementById('ledgerDropdown');
+    const searchTerm = input.value.toLowerCase().trim();
+    
+    // Filter ledgers
+    const filtered = searchTerm ? 
+        allLedgers.filter(l => l.toLowerCase().includes(searchTerm)).slice(0, 50) : 
+        allLedgers.slice(0, 50);
+    
+    if (filtered.length === 0) {
+        dropdown.innerHTML = '<div style="padding: 0.75rem; color: var(--gray-500);">No ledgers found</div>';
+    } else {
+        dropdown.innerHTML = filtered.map(name => 
+            `<div class="dropdown-item" onclick="selectLedger('${name.replace(/'/g, "\\'")}')" style="padding: 0.5rem 0.75rem; cursor: pointer; border-bottom: 1px solid var(--gray-100);" onmouseover="this.style.background='var(--gray-100)'" onmouseout="this.style.background='white'">${name}</div>`
+        ).join('');
+    }
+    
+    dropdown.style.display = 'block';
+}
+
+function selectLedger(name) {
+    document.getElementById('ledgerSearchInput').value = name;
+    document.getElementById('ledgerDropdown').style.display = 'none';
+    // Auto-load report when ledger is selected
+    loadLedgerReport();
+}
+
+// Close dropdown when clicking outside
+document.addEventListener('click', (e) => {
+    const dropdown = document.getElementById('ledgerDropdown');
+    const input = document.getElementById('ledgerSearchInput');
+    if (dropdown && input && !dropdown.contains(e.target) && e.target !== input) {
+        dropdown.style.display = 'none';
+    }
+});
+
+// Reload ledger report if a ledger is already selected (for date changes)
+function reloadLedgerIfSelected() {
+    const ledgerName = document.getElementById('ledgerSearchInput').value;
+    if (ledgerName && allLedgers.includes(ledgerName)) {
+        loadLedgerReport();
+    }
+}
+
+async function loadLedgerReport() {
+    const ledgerName = document.getElementById('ledgerSearchInput').value;
+    if (!ledgerName) {
+        showToast('Please select a ledger', 'warning');
+        return;
+    }
+    
+    selectedLedger = ledgerName;
+    const fromDate = document.getElementById('ledgerFromDate').value;
+    const toDate = document.getElementById('ledgerToDate').value;
+    
+    const tbody = document.getElementById('ledgerTableBody');
+    tbody.innerHTML = '<tr><td colspan="7" class="loading-cell"><i class="fas fa-spinner fa-spin"></i> Loading...</td></tr>';
+    
+    try {
+        let url = `/api/data/ledger-report?ledger=${encodeURIComponent(ledgerName)}&company=${encodeURIComponent(selectedCompany)}`;
+        if (fromDate) url += `&from_date=${fromDate}`;
+        if (toDate) url += `&to_date=${toDate}`;
+        
+        const response = await fetch(url);
+        const result = await response.json();
+        
+        renderLedgerReport(result);
+        showToast(`Loaded ${ledgerName}`, 'success');
+    } catch (error) {
+        console.error('Failed to load ledger report:', error);
+        tbody.innerHTML = '<tr><td colspan="7" class="loading-cell">Failed to load data</td></tr>';
+        showToast('Failed to load ledger report', 'error');
+    }
+}
+
+function renderLedgerReport(result) {
+    const tbody = document.getElementById('ledgerTableBody');
+    const transactions = result.transactions || [];
+    
+    // Update title
+    document.getElementById('ledgerTitle').textContent = `${selectedLedger} - Transactions`;
+    document.getElementById('ledgerCount').textContent = `${transactions.length} entries`;
+    
+    // Update summary
+    document.getElementById('ledgerOpeningBal').textContent = formatCurrency(result.opening_balance || 0);
+    document.getElementById('ledgerDebit').textContent = formatCurrency(result.total_debit || 0);
+    document.getElementById('ledgerCredit').textContent = formatCurrency(result.total_credit || 0);
+    document.getElementById('ledgerClosingBal').textContent = formatCurrency(result.closing_balance || 0);
+    
+    if (transactions.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="loading-cell">No transactions found</td></tr>';
+        return;
+    }
+    
+    // Render transactions with running balance
+    let runningBalance = result.opening_balance || 0;
+    let html = '';
+    
+    // Opening balance row
+    html += `<tr style="background: var(--gray-100); font-weight: 500;">
+        <td colspan="4">Opening Balance</td>
+        <td class="text-right"></td>
+        <td class="text-right"></td>
+        <td class="text-right">${formatCurrency(runningBalance)}</td>
+    </tr>`;
+    
+    transactions.forEach(txn => {
+        const debit = txn.debit || 0;
+        const credit = txn.credit || 0;
+        runningBalance += debit - credit;
+        
+        html += `<tr>
+            <td>${txn.date || '-'}</td>
+            <td>${txn.particulars || '-'}</td>
+            <td><span class="source-badge">${txn.voucher_type || '-'}</span></td>
+            <td>${txn.voucher_no || '-'}</td>
+            <td class="text-right">${debit > 0 ? formatCurrency(debit) : ''}</td>
+            <td class="text-right">${credit > 0 ? formatCurrency(credit) : ''}</td>
+            <td class="text-right" style="font-weight: 500;">${formatCurrency(runningBalance)}</td>
+        </tr>`;
+    });
+    
+    // Closing balance row
+    html += `<tr style="background: var(--primary-light); font-weight: 600;">
+        <td colspan="4" style="color: var(--primary-dark);">Closing Balance</td>
+        <td class="text-right" style="color: var(--primary-dark);">${formatCurrency(result.total_debit || 0)}</td>
+        <td class="text-right" style="color: var(--primary-dark);">${formatCurrency(result.total_credit || 0)}</td>
+        <td class="text-right" style="color: var(--primary-dark);">${formatCurrency(result.closing_balance || 0)}</td>
+    </tr>`;
+    
+    tbody.innerHTML = html;
+}
+
+// Ledger Report Tab Switching
+let currentLedgerTab = 'transactions';
+
+function switchLedgerTab(tabType) {
+    currentLedgerTab = tabType;
+    
+    // Update tab buttons
+    document.querySelectorAll('[data-ledger-tab]').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.ledgerTab === tabType);
+    });
+    
+    // Load data based on tab
+    const ledgerName = document.getElementById('ledgerSearchInput').value;
+    if (!ledgerName) {
+        showToast('Please select a ledger first', 'warning');
+        return;
+    }
+    
+    if (tabType === 'transactions') {
+        loadLedgerReport();
+    } else if (tabType === 'billwise') {
+        loadLedgerBillwise();
+    }
+}
+
+async function loadLedgerBillwise() {
+    const ledgerName = document.getElementById('ledgerSearchInput').value;
+    if (!ledgerName) return;
+    
+    const fromDate = document.getElementById('ledgerFromDate').value;
+    const toDate = document.getElementById('ledgerToDate').value;
+    
+    const tbody = document.getElementById('ledgerTableBody');
+    const thead = document.getElementById('ledgerTableHead');
+    tbody.innerHTML = '<tr><td colspan="7" class="loading-cell"><i class="fas fa-spinner fa-spin"></i> Loading bills...</td></tr>';
+    
+    try {
+        let url = `/api/data/ledger-billwise?ledger=${encodeURIComponent(ledgerName)}&company=${encodeURIComponent(selectedCompany)}`;
+        if (fromDate) url += `&from_date=${fromDate}`;
+        if (toDate) url += `&to_date=${toDate}`;
+        
+        const response = await fetch(url);
+        const result = await response.json();
+        
+        renderLedgerBillwise(result);
+    } catch (error) {
+        console.error('Failed to load ledger billwise:', error);
+        tbody.innerHTML = '<tr><td colspan="7" class="loading-cell">Failed to load bills</td></tr>';
+        showToast('Failed to load bills', 'error');
+    }
+}
+
+function renderLedgerBillwise(result) {
+    const tbody = document.getElementById('ledgerTableBody');
+    const thead = document.getElementById('ledgerTableHead');
+    const bills = result.bills || [];
+    
+    // Update header
+    thead.innerHTML = `<tr>
+        <th style="width: 100px;">Date</th>
+        <th style="width: 180px;">Ref. No.</th>
+        <th class="text-right" style="width: 140px;">Opening Amount</th>
+        <th class="text-right" style="width: 140px;">Pending Amount</th>
+        <th style="width: 100px;">Due Date</th>
+        <th class="text-right" style="width: 80px;">Overdue</th>
+    </tr>`;
+    
+    document.getElementById('ledgerTitle').textContent = `${selectedLedger} - Pending Bills`;
+    document.getElementById('ledgerCount').textContent = `${bills.length} bills`;
+    
+    if (bills.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="loading-cell">No pending bills found</td></tr>';
+        return;
+    }
+    
+    let html = '';
+    let totalOpening = 0;
+    let totalPending = 0;
+    
+    bills.forEach(bill => {
+        const opening = bill.opening_amount || 0;
+        const pending = bill.pending_amount || 0;
+        totalOpening += Math.abs(opening);
+        totalPending += pending;
+        
+        // Opening Amount with Cr/Dr like Tally
+        const openingDisplay = opening > 0 ? `${formatCurrency(opening)} Cr` : (opening < 0 ? `${formatCurrency(Math.abs(opening))} Dr` : '-');
+        // Pending Amount with Cr/Dr like Tally
+        const pendingDisplay = pending > 0 ? `${formatCurrency(pending)} Cr` : `${formatCurrency(Math.abs(pending))} Dr`;
+        
+        // Row 1: Main bill row
+        html += `<tr>
+            <td>${bill.bill_date || '-'}</td>
+            <td>${bill.bill_no || '-'}</td>
+            <td class="text-right">${openingDisplay}</td>
+            <td class="text-right" style="color: ${pending > 0 ? '#dc2626' : '#16a34a'}; font-weight: 500;">${pendingDisplay}</td>
+            <td>${bill.due_date || '-'}</td>
+            <td class="text-right">${bill.overdue_days || 0}</td>
+        </tr>`;
+        
+        // Row 2: Opening Balance sub-row (like Tally)
+        const sourceText = bill.source === 'Opening' ? 'Opening Balance' : (bill.source || 'Transaction');
+        const openingAmountCrDr = opening > 0 ? `${formatCurrency(opening)} Cr` : (opening < 0 ? `${formatCurrency(Math.abs(opening))} Dr` : '');
+        html += `<tr style="color: var(--gray-500); font-size: 0.85rem;">
+            <td style="padding-left: 1rem;">${bill.bill_date || '-'}</td>
+            <td style="padding-left: 1rem;">${sourceText}</td>
+            <td class="text-right">${openingAmountCrDr}</td>
+            <td colspan="3"></td>
+        </tr>`;
+    });
+    
+    // Sub Total row
+    const totalOpeningDisplay = totalOpening > 0 ? `${formatCurrency(totalOpening)} Cr` : '-';
+    const totalPendingDisplay = totalPending > 0 ? `${formatCurrency(totalPending)} Cr` : `${formatCurrency(Math.abs(totalPending))} Dr`;
+    html += `<tr style="background: var(--gray-100); font-weight: 600;">
+        <td colspan="2" style="text-align: right;">Sub Total:</td>
+        <td class="text-right">${totalOpeningDisplay}</td>
+        <td class="text-right" style="color: ${totalPending > 0 ? '#dc2626' : '#16a34a'};">${totalPendingDisplay}</td>
+        <td colspan="2"></td>
+    </tr>`;
+    
+    // On Account row if exists (like Tally - 2 rows)
+    if (result.on_account && result.on_account !== 0) {
+        const onAccountDisplay = result.on_account > 0 ? `${formatCurrency(result.on_account)} Dr` : `${formatCurrency(Math.abs(result.on_account))} Cr`;
+        // Row 1: On Account main row
+        html += `<tr>
+            <td>${result.on_account_date || '-'}</td>
+            <td>On Account</td>
+            <td class="text-right">${onAccountDisplay}</td>
+            <td class="text-right" style="color: ${result.on_account > 0 ? '#16a34a' : '#dc2626'}; font-weight: 500;">${onAccountDisplay}</td>
+            <td colspan="2"></td>
+        </tr>`;
+        // Row 2: Opening Balance sub-row
+        html += `<tr style="color: var(--gray-500); font-size: 0.85rem;">
+            <td style="padding-left: 1rem;">${result.on_account_date || '-'}</td>
+            <td style="padding-left: 1rem;">Opening Balance</td>
+            <td class="text-right">${onAccountDisplay}</td>
+            <td colspan="3"></td>
+        </tr>`;
+    }
+    
+    tbody.innerHTML = html;
 }

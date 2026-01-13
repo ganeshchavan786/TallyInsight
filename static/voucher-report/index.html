@@ -56,6 +56,13 @@
                             <li><a href="#" class="submenu-link outstanding-link" data-outstanding="payable">Payable</a></li>
                         </ul>
                     </li>
+                    <!-- Ledger Report -->
+                    <li class="nav-item">
+                        <a href="#" class="nav-link" onclick="showLedgerView()">
+                            <i class="fas fa-book"></i>
+                            <span>Ledger</span>
+                        </a>
+                    </li>
                 </ul>
                 
                 <div class="nav-divider"></div>
@@ -323,6 +330,106 @@
                             </thead>
                             <tbody id="outstandingTableBody">
                                 <tr><td colspan="5" class="loading-cell"><i class="fas fa-spinner fa-spin"></i> Loading...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Ledger Report Section -->
+            <div id="ledgerSection" style="display: none;">
+                <!-- Ledger Selection Card -->
+                <div class="filters-card" style="margin-bottom: 1.5rem; padding: 1.5rem; position: relative; z-index: 100;">
+                    <div style="display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 1rem; align-items: end;">
+                        <div style="position: relative;">
+                            <label style="font-weight: 600; margin-bottom: 0.5rem; display: block; color: var(--gray-700);">
+                                <i class="fas fa-book" style="margin-right: 0.5rem; color: var(--primary);"></i>Select Ledger
+                            </label>
+                            <input type="text" id="ledgerSearchInput" class="form-control" placeholder="Type to search ledger..." autocomplete="off" oninput="filterLedgerDropdown()" onfocus="showLedgerDropdown()" style="width: 100%; padding: 0.75rem; border-radius: var(--radius); border: 1px solid var(--gray-300); font-size: 0.95rem;">
+                            <div id="ledgerDropdown" class="custom-dropdown" style="display: none; position: absolute; top: 100%; left: 0; right: 0; max-height: 300px; overflow-y: auto; background: white; border: 1px solid var(--gray-300); border-radius: var(--radius); box-shadow: var(--shadow-lg); z-index: 9999;"></div>
+                        </div>
+                        <div>
+                            <label style="font-weight: 600; margin-bottom: 0.5rem; display: block; color: var(--gray-700);">From Date</label>
+                            <input type="date" id="ledgerFromDate" class="form-control" onchange="reloadLedgerIfSelected()" style="padding: 0.75rem; border-radius: var(--radius); border: 1px solid var(--gray-300);">
+                        </div>
+                        <div>
+                            <label style="font-weight: 600; margin-bottom: 0.5rem; display: block; color: var(--gray-700);">To Date</label>
+                            <input type="date" id="ledgerToDate" class="form-control" onchange="reloadLedgerIfSelected()" style="padding: 0.75rem; border-radius: var(--radius); border: 1px solid var(--gray-300);">
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Ledger Summary -->
+                <div class="stats-grid" id="ledgerStats">
+                    <div class="stat-card">
+                        <div class="stat-icon sales">
+                            <i class="fas fa-arrow-up"></i>
+                        </div>
+                        <div class="stat-info">
+                            <span class="stat-value" id="ledgerOpeningBal">₹0</span>
+                            <span class="stat-label">Opening Balance</span>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon purchase">
+                            <i class="fas fa-plus"></i>
+                        </div>
+                        <div class="stat-info">
+                            <span class="stat-value" id="ledgerDebit">₹0</span>
+                            <span class="stat-label">Total Debit</span>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon receipt">
+                            <i class="fas fa-minus"></i>
+                        </div>
+                        <div class="stat-info">
+                            <span class="stat-value" id="ledgerCredit">₹0</span>
+                            <span class="stat-label">Total Credit</span>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon payment">
+                            <i class="fas fa-wallet"></i>
+                        </div>
+                        <div class="stat-info">
+                            <span class="stat-value" id="ledgerClosingBal">₹0</span>
+                            <span class="stat-label">Closing Balance</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Ledger Report Tabs -->
+                <div class="report-tabs" style="margin-bottom: 1rem;">
+                    <button class="report-tab active" data-ledger-tab="transactions" onclick="switchLedgerTab('transactions')">
+                        <i class="fas fa-list"></i> Transactions
+                    </button>
+                    <button class="report-tab" data-ledger-tab="billwise" onclick="switchLedgerTab('billwise')">
+                        <i class="fas fa-file-invoice"></i> Bill-wise
+                    </button>
+                </div>
+                
+                <!-- Ledger Transactions Table -->
+                <div class="table-card">
+                    <div class="table-header">
+                        <h3><i class="fas fa-list"></i> <span id="ledgerTitle">Transactions</span></h3>
+                        <span class="badge" id="ledgerCount">0 entries</span>
+                    </div>
+                    <div class="table-container">
+                        <table class="data-table" id="ledgerTable">
+                            <thead id="ledgerTableHead">
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Particulars</th>
+                                    <th>Voucher Type</th>
+                                    <th>Voucher No.</th>
+                                    <th class="text-right">Debit</th>
+                                    <th class="text-right">Credit</th>
+                                    <th class="text-right">Balance</th>
+                                </tr>
+                            </thead>
+                            <tbody id="ledgerTableBody">
+                                <tr><td colspan="7" class="loading-cell">Select a ledger to view transactions</td></tr>
                             </tbody>
                         </table>
                     </div>

@@ -1319,3 +1319,133 @@ body {
     background: #ede9fe;
     color: #7c3aed;
 }
+
+/* Custom Dropdown for Ledger Search */
+#ledgerDropdown {
+    position: absolute !important;
+    z-index: 99999 !important;
+    background: white !important;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.2) !important;
+}
+
+#ledgerDropdown .dropdown-item:hover {
+    background: var(--primary-light) !important;
+    color: var(--primary-dark) !important;
+}
+
+/* Ensure ledger section stats-grid has lower z-index */
+#ledgerSection .stats-grid,
+#ledgerSection .stat-card,
+#ledgerStats {
+    position: relative;
+    z-index: 1;
+}
+
+/* Ensure filters-card allows dropdown overflow */
+#ledgerSection .filters-card {
+    overflow: visible !important;
+    position: relative;
+    z-index: 100;
+}
+
+/* Ledger Section Compact Styling */
+#ledgerSection .stats-grid {
+    gap: 0.75rem;
+}
+
+#ledgerSection .stat-card {
+    padding: 0.75rem 1rem;
+}
+
+#ledgerSection .stat-value {
+    font-size: 1.25rem;
+}
+
+#ledgerSection .stat-label {
+    font-size: 0.75rem;
+}
+
+#ledgerSection .stat-icon {
+    width: 36px;
+    height: 36px;
+    font-size: 0.9rem;
+}
+
+/* Compact Report Tabs */
+#ledgerSection .report-tabs {
+    gap: 0.5rem;
+}
+
+#ledgerSection .report-tab {
+    padding: 0.5rem 1.25rem;
+    font-size: 0.85rem;
+}
+
+/* Compact Table */
+#ledgerSection .data-table th,
+#ledgerSection .data-table td {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.85rem;
+}
+
+#ledgerSection .table-header h3 {
+    font-size: 0.95rem;
+}
+
+#ledgerSection .table-header .badge {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+}
+
+/* Compact Filter Bar for Ledger Section */
+#ledgerSection .filters-card {
+    padding: 0.75rem 1rem !important;
+    margin-bottom: 0.75rem !important;
+}
+
+#ledgerSection .filters-card label {
+    font-size: 0.75rem !important;
+    margin-bottom: 0.25rem !important;
+}
+
+#ledgerSection .filters-card input,
+#ledgerSection .filters-card select {
+    padding: 0.5rem 0.75rem !important;
+    font-size: 0.85rem !important;
+}
+
+/* Fix Table Column Widths */
+#ledgerSection .data-table {
+    table-layout: fixed;
+    width: 100%;
+}
+
+#ledgerSection .data-table th:nth-child(1),
+#ledgerSection .data-table td:nth-child(1) {
+    width: 90px;
+}
+
+#ledgerSection .data-table th:nth-child(2),
+#ledgerSection .data-table td:nth-child(2) {
+    width: 160px;
+}
+
+#ledgerSection .data-table th:nth-child(3),
+#ledgerSection .data-table td:nth-child(3) {
+    width: 120px;
+}
+
+#ledgerSection .data-table th:nth-child(4),
+#ledgerSection .data-table td:nth-child(4) {
+    width: 120px;
+}
+
+#ledgerSection .data-table th:nth-child(5),
+#ledgerSection .data-table td:nth-child(5) {
+    width: 90px;
+}
+
+#ledgerSection .data-table th:nth-child(6),
+#ledgerSection .data-table td:nth-child(6) {
+    width: 70px;
+}
