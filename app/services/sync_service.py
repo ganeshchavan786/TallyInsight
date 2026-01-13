@@ -216,6 +216,9 @@ class SyncService:
             # Update sync history - completed
             await self._update_sync_history(sync_history_id, "completed")
             
+            # Refresh ledger balance summary table for fast outstanding queries
+            await self._refresh_ledger_balance_summary()
+            
             # Clear sync state on success
             self._clear_sync_state()
             
@@ -354,6 +357,9 @@ class SyncService:
             
             # Update sync history - completed
             await self._update_sync_history(sync_history_id, "completed")
+            
+            # Refresh ledger balance summary table for fast outstanding queries
+            await self._refresh_ledger_balance_summary()
             
             logger.info(f"Incremental sync completed. Total rows: {self.rows_processed}")
             return self.get_status()
@@ -1410,6 +1416,43 @@ class SyncService:
             logger.info(f"Config updated for company: {company_name}, AlterID Master: {alt_id_master}, AlterID Transaction: {alt_id_transaction}")
         except Exception as e:
             logger.warning(f"Failed to update config table: {e}")
+    
+    async def _refresh_ledger_balance_summary(self):
+        """Refresh ledger balance summary table for fast outstanding queries"""
+        try:
+            logger.info("Refreshing ledger_balance_summary table...")
+            
+            # Drop and recreate summary table
+            await database_service.execute(
+                "DROP TABLE IF EXISTS ledger_balance_summary"
+            )
+            
+            await database_service.execute("""
+                CREATE TABLE ledger_balance_summary AS 
+                SELECT 
+                    l.name as ledger_name, 
+                    l.parent, 
+                    l._company, 
+                    l.opening_balance, 
+                    COALESCE(SUM(CASE WHEN a.amount > 0 THEN a.amount ELSE 0 END), 0) as debit, 
+                    COALESCE(SUM(CASE WHEN a.amount < 0 THEN ABS(a.amount) ELSE 0 END), 0) as credit, 
+                    l.opening_balance + COALESCE(SUM(a.amount), 0) as closing 
+                FROM mst_ledger l 
+                LEFT JOIN trn_accounting a ON l.name = a.ledger AND l._company = a._company 
+                GROUP BY l.name, l._company
+            """)
+            
+            # Create indexes for fast queries
+            await database_service.execute(
+                "CREATE INDEX IF NOT EXISTS idx_lbs_parent ON ledger_balance_summary(parent)"
+            )
+            await database_service.execute(
+                "CREATE INDEX IF NOT EXISTS idx_lbs_company ON ledger_balance_summary(_company)"
+            )
+            
+            logger.info("ledger_balance_summary table refreshed successfully")
+        except Exception as e:
+            logger.warning(f"Failed to refresh ledger_balance_summary: {e}")
 
 
 # Global service instance

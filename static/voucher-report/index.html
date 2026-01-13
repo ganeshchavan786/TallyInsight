@@ -18,43 +18,43 @@
                 <span>Voucher Report</span>
             </div>
             
+            <!-- Company Selector -->
+            <div class="company-selector">
+                <label>Company</label>
+                <select id="companySelect" onchange="changeCompany()">
+                    <option value="">All Companies</option>
+                </select>
+            </div>
+            
             <nav>
                 <ul class="nav-menu">
-                    <li class="nav-item">
-                        <a href="#" class="nav-link active" data-view="vouchers">
+                    <!-- Voucher with Submenu -->
+                    <li class="nav-item has-submenu open">
+                        <a href="#" class="nav-link" onclick="toggleSubmenu(event)">
                             <i class="fas fa-file-invoice"></i>
-                            <span>All Vouchers</span>
+                            <span>Voucher</span>
+                            <i class="fas fa-chevron-down submenu-arrow"></i>
                         </a>
+                        <ul class="submenu show">
+                            <li><a href="#" class="submenu-link active" data-type="Sales">Sales</a></li>
+                            <li><a href="#" class="submenu-link" data-type="Purchase">Purchase</a></li>
+                            <li><a href="#" class="submenu-link" data-type="Payment">Payment</a></li>
+                            <li><a href="#" class="submenu-link" data-type="Receipt">Receipt</a></li>
+                            <li><a href="#" class="submenu-link" data-type="Journal">Journal</a></li>
+                            <li><a href="#" class="submenu-link" data-type="Contra">Contra</a></li>
+                        </ul>
                     </li>
-                    <li class="nav-item">
-                        <a href="#" class="nav-link" data-view="sales">
-                            <i class="fas fa-shopping-cart"></i>
-                            <span>Sales</span>
+                    <!-- Outstanding with Submenu -->
+                    <li class="nav-item has-submenu">
+                        <a href="#" class="nav-link" onclick="toggleSubmenu(event)">
+                            <i class="fas fa-balance-scale"></i>
+                            <span>Outstanding</span>
+                            <i class="fas fa-chevron-down submenu-arrow"></i>
                         </a>
-                    </li>
-                    <li class="nav-item">
-                        <a href="#" class="nav-link" data-view="purchase">
-                            <i class="fas fa-truck"></i>
-                            <span>Purchase</span>
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a href="#" class="nav-link" data-view="payment">
-                            <i class="fas fa-money-bill-wave"></i>
-                            <span>Payment</span>
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a href="#" class="nav-link" data-view="receipt">
-                            <i class="fas fa-hand-holding-usd"></i>
-                            <span>Receipt</span>
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a href="#" class="nav-link" data-view="journal">
-                            <i class="fas fa-book"></i>
-                            <span>Journal</span>
-                        </a>
+                        <ul class="submenu">
+                            <li><a href="#" class="submenu-link outstanding-link" data-outstanding="receivable">Receivable</a></li>
+                            <li><a href="#" class="submenu-link outstanding-link" data-outstanding="payable">Payable</a></li>
+                        </ul>
                     </li>
                 </ul>
                 
@@ -218,20 +218,17 @@
                     <table class="data-table" id="vouchersTable">
                         <thead>
                             <tr>
-                                <th class="sticky-col" data-sort="date">
-                                    Date <i class="fas fa-sort"></i>
-                                </th>
+                                <th data-sort="date">Date <i class="fas fa-sort"></i></th>
                                 <th data-sort="voucher_type">Type <i class="fas fa-sort"></i></th>
                                 <th data-sort="voucher_number">Voucher No.</th>
                                 <th data-sort="party_name">Party Name <i class="fas fa-sort"></i></th>
                                 <th class="text-right" data-sort="amount">Amount <i class="fas fa-sort"></i></th>
-                                <th>Narration</th>
-                                <th class="sticky-col-right">Actions</th>
+                                <th class="text-center">Actions</th>
                             </tr>
                         </thead>
                         <tbody id="vouchersTableBody">
                             <tr>
-                                <td colspan="7" class="loading-cell">
+                                <td colspan="6" class="loading-cell">
                                     <div class="loader">
                                         <i class="fas fa-spinner fa-spin"></i>
                                         <span>Loading vouchers...</span>
@@ -249,6 +246,85 @@
                     </div>
                     <div class="pagination" id="pagination">
                         <!-- Pagination buttons will be generated by JS -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Outstanding Section (Hidden by default) -->
+            <div id="outstandingSection" style="display: none;">
+                <!-- Period Selector -->
+                <div class="period-selector" style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem; padding: 1rem; background: var(--gray-50); border-radius: 8px;">
+                    <span style="font-weight: 500;"><i class="fas fa-calendar-alt"></i> Period:</span>
+                    <input type="date" id="outstandingFromDate" class="form-control" style="width: auto; padding: 0.5rem;" onchange="onPeriodChange()">
+                    <span>to</span>
+                    <input type="date" id="outstandingToDate" class="form-control" style="width: auto; padding: 0.5rem;" onchange="onPeriodChange()">
+                    <button class="btn btn-sm btn-primary" onclick="applyPeriodFilter()" style="padding: 0.5rem 1rem;">
+                        <i class="fas fa-filter"></i> Apply
+                    </button>
+                    <button class="btn btn-sm btn-secondary" onclick="resetPeriodFilter()" style="padding: 0.5rem 1rem;">
+                        <i class="fas fa-undo"></i> Reset
+                    </button>
+                </div>
+                
+                <!-- Report Type Tabs -->
+                <div class="report-tabs">
+                    <button class="report-tab active" data-report="ledger" onclick="switchOutstandingReport('ledger')">
+                        <i class="fas fa-user"></i> Ledger
+                    </button>
+                    <button class="report-tab" data-report="billwise" onclick="switchOutstandingReport('billwise')">
+                        <i class="fas fa-file-invoice"></i> Bill-wise
+                    </button>
+                    <button class="report-tab" data-report="ledgerwise" onclick="switchOutstandingReport('ledgerwise')">
+                        <i class="fas fa-list-alt"></i> Ledger-wise
+                    </button>
+                    <button class="report-tab" data-report="ageing" onclick="switchOutstandingReport('ageing')">
+                        <i class="fas fa-clock"></i> Ageing
+                    </button>
+                    <button class="report-tab" data-report="group" onclick="switchOutstandingReport('group')">
+                        <i class="fas fa-layer-group"></i> Group
+                    </button>
+                </div>
+                
+                <div class="stats-grid" id="outstandingStats">
+                    <div class="stat-card">
+                        <div class="stat-icon sales">
+                            <i class="fas fa-arrow-down"></i>
+                        </div>
+                        <div class="stat-info">
+                            <span class="stat-value" id="outstandingTotal">₹0</span>
+                            <span class="stat-label" id="outstandingLabel">Total Outstanding</span>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon purchase">
+                            <i class="fas fa-users"></i>
+                        </div>
+                        <div class="stat-info">
+                            <span class="stat-value" id="outstandingParties">0</span>
+                            <span class="stat-label">Parties</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="table-card">
+                    <div class="table-header">
+                        <h3><i class="fas fa-list"></i> <span id="outstandingTitle">Outstanding List</span></h3>
+                        <span class="badge" id="outstandingCount">0 records</span>
+                    </div>
+                    <div class="table-container">
+                        <table class="data-table" id="outstandingTable">
+                            <thead id="outstandingTableHead">
+                                <tr>
+                                    <th>Party Name</th>
+                                    <th class="text-right">Opening</th>
+                                    <th class="text-right">Debit</th>
+                                    <th class="text-right">Credit</th>
+                                    <th class="text-right">Closing</th>
+                                </tr>
+                            </thead>
+                            <tbody id="outstandingTableBody">
+                                <tr><td colspan="5" class="loading-cell"><i class="fas fa-spinner fa-spin"></i> Loading...</td></tr>
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </div>

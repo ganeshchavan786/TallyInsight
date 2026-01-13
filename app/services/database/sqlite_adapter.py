@@ -43,6 +43,8 @@ class SQLiteDatabaseService(BaseDatabaseService):
                 await self._connection.execute("PRAGMA journal_mode=WAL")
                 await self._connection.execute("PRAGMA busy_timeout=30000")
                 await self._connection.execute("PRAGMA synchronous=NORMAL")
+                await self._connection.execute("PRAGMA cache_size=-64000")
+                await self._connection.execute("PRAGMA temp_store=MEMORY")
                 self._initialized = True
             
             logger.info(f"Connected to SQLite database: {self.db_path}")

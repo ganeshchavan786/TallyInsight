@@ -33,6 +33,7 @@ const api = {
         if (params.from_date) queryParams.append('from_date', params.from_date);
         if (params.to_date) queryParams.append('to_date', params.to_date);
         if (params.party_name) queryParams.append('party_name', params.party_name);
+        if (params.company) queryParams.append('company', params.company);
         if (params.search) queryParams.append('search', params.search);
         if (params.skip !== undefined) queryParams.append('skip', params.skip);
         if (params.limit !== undefined) queryParams.append('limit', params.limit);

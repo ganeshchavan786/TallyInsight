@@ -136,6 +136,16 @@ async def voucher_report_page():
     return {"error": "Voucher Report page not found"}
 
 
+@app.get("/outstanding-report")
+@app.get("/outstanding-report/")
+async def outstanding_report_page():
+    """Serve outstanding report page"""
+    html_path = Path(__file__).parent.parent / "static" / "outstanding-report" / "index.html"
+    if html_path.exists():
+        return FileResponse(str(html_path), media_type="text/html")
+    return {"error": "Outstanding Report page not found"}
+
+
 @app.get("/api/info")
 async def info():
     """System information"""

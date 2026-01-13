@@ -7,35 +7,33 @@ let currentPage = 1;
 let pageSize = CONFIG.DEFAULT_PAGE_SIZE;
 let sortColumn = 'date';
 let sortDirection = 'desc';
+let selectedCompany = '';
+let selectedVoucherType = 'Sales'; // Default to Sales
+let currentView = 'voucher'; // 'voucher' or 'outstanding'
+let outstandingData = [];
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
     initializeDates();
-    loadCompanyInfo();
-    loadVouchers();
+    loadCompanies();
     setupEventListeners();
+    setupSubmenuListeners();
 });
 
 // Setup Event Listeners
 function setupEventListeners() {
-    // Global search
+    // Global search - works for both vouchers and outstanding
     const searchInput = document.getElementById('globalSearch');
     let searchTimeout;
     searchInput.addEventListener('input', (e) => {
         clearTimeout(searchTimeout);
         searchTimeout = setTimeout(() => {
-            filterVouchers();
+            if (currentView === 'outstanding') {
+                filterOutstandingTable();
+            } else {
+                filterVouchers();
+            }
         }, 300);
-    });
-    
-    // Navigation links
-    document.querySelectorAll('.nav-link').forEach(link => {
-        link.addEventListener('click', (e) => {
-            e.preventDefault();
-            const view = link.dataset.view;
-            setActiveNav(link);
-            filterByType(view);
-        });
     });
     
     // Table header sorting
@@ -54,21 +52,111 @@ function setupEventListeners() {
     });
 }
 
+// Setup Submenu Listeners
+function setupSubmenuListeners() {
+    // Voucher type links
+    document.querySelectorAll('.submenu-link[data-type]').forEach(link => {
+        link.addEventListener('click', (e) => {
+            e.preventDefault();
+            const type = link.dataset.type;
+            
+            // Update active state
+            document.querySelectorAll('.submenu-link').forEach(l => l.classList.remove('active'));
+            link.classList.add('active');
+            
+            // Switch to voucher view
+            showVoucherView();
+            
+            // Update voucher type filter
+            selectedVoucherType = type;
+            document.getElementById('voucherType').value = type;
+            
+            // Reload with filter
+            loadVouchers();
+        });
+    });
+    
+    // Outstanding links
+    document.querySelectorAll('.submenu-link[data-outstanding]').forEach(link => {
+        link.addEventListener('click', (e) => {
+            e.preventDefault();
+            const type = link.dataset.outstanding;
+            
+            // Update active state
+            document.querySelectorAll('.submenu-link').forEach(l => l.classList.remove('active'));
+            link.classList.add('active');
+            
+            // Switch to outstanding view
+            showOutstandingView(type);
+        });
+    });
+}
+
+// Toggle Submenu
+function toggleSubmenu(event) {
+    event.preventDefault();
+    const navItem = event.currentTarget.parentElement;
+    const submenu = navItem.querySelector('.submenu');
+    
+    navItem.classList.toggle('open');
+    submenu.classList.toggle('show');
+}
+
 // Initialize Dates
 function initializeDates() {
     document.getElementById('fromDate').value = CONFIG.DEFAULT_FROM_DATE;
     document.getElementById('toDate').value = CONFIG.DEFAULT_TO_DATE;
 }
 
-// Load Company Info
-async function loadCompanyInfo() {
+// Load Companies for dropdown
+async function loadCompanies() {
     try {
         const data = await api.getSyncedCompanies();
+        const select = document.getElementById('companySelect');
+        const footer = document.getElementById('currentCompany');
+        
         if (data.companies && data.companies.length > 0) {
-            document.getElementById('currentCompany').textContent = data.companies[0].company_name;
+            // Populate dropdown
+            data.companies.forEach(c => {
+                const option = document.createElement('option');
+                option.value = c.company_name;
+                option.textContent = c.company_name;
+                select.appendChild(option);
+            });
+            
+            // Set first company as default
+            selectedCompany = data.companies[0].company_name;
+            select.value = selectedCompany;
+            footer.textContent = selectedCompany;
+            
+            // Set default voucher type in dropdown
+            document.getElementById('voucherType').value = selectedVoucherType;
+            
+            // Load vouchers for selected company
+            loadVouchers();
+        } else {
+            footer.textContent = 'No companies synced';
+            showToast('No companies found. Please sync data first.', 'warning');
         }
     } catch (error) {
-        console.error('Failed to load company info:', error);
+        console.error('Failed to load companies:', error);
+        showToast('Failed to load companies', 'error');
+    }
+}
+
+// Change Company
+function changeCompany() {
+    const select = document.getElementById('companySelect');
+    selectedCompany = select.value;
+    document.getElementById('currentCompany').textContent = selectedCompany || 'All Companies';
+    
+    // Reload based on current view
+    if (currentView === 'outstanding') {
+        const activeLink = document.querySelector('.submenu-link[data-outstanding].active');
+        const type = activeLink ? activeLink.dataset.outstanding : 'receivable';
+        loadOutstandingData(type);
+    } else {
+        loadVouchers();
     }
 }
 
@@ -79,18 +167,19 @@ async function loadVouchers() {
     try {
         const fromDate = document.getElementById('fromDate').value;
         const toDate = document.getElementById('toDate').value;
-        const voucherType = document.getElementById('voucherType').value;
+        const voucherType = document.getElementById('voucherType').value || selectedVoucherType;
         
         // Fetch all vouchers (paginated from API)
         allVouchers = await fetchAllVouchers({
             from_date: fromDate,
             to_date: toDate,
-            voucher_type: voucherType
+            voucher_type: voucherType,
+            company: selectedCompany
         });
         
         filterVouchers();
         updateStats();
-        showToast('Vouchers loaded successfully', 'success');
+        showToast(`Loaded ${allVouchers.length} vouchers`, 'success');
     } catch (error) {
         console.error('Failed to load vouchers:', error);
         showToast('Failed to load vouchers: ' + error.message, 'error');
@@ -202,7 +291,7 @@ function renderVouchers() {
     if (pageVouchers.length === 0) {
         tbody.innerHTML = `
             <tr>
-                <td colspan="7" class="loading-cell">
+                <td colspan="6" class="loading-cell">
                     <div class="empty-state">
                         <i class="fas fa-inbox"></i>
                         <p>No vouchers found</p>
@@ -220,15 +309,12 @@ function renderVouchers() {
         
         return `
             <tr>
-                <td class="sticky-col">${formatDate(v.date)}</td>
+                <td>${formatDate(v.date)}</td>
                 <td><span class="voucher-type-tag ${typeClass}">${v.voucher_type}</span></td>
                 <td>${v.voucher_number || '-'}</td>
                 <td>${v.party_name || '-'}</td>
-                <td class="text-right ${amount >= 0 ? 'amount-positive' : 'amount-negative'}">
-                    ${formatCurrency(Math.abs(amount))}
-                </td>
-                <td><span class="narration-text" title="${escapeHtml(v.narration || '')}">${truncate(v.narration, 40)}</span></td>
-                <td class="sticky-col-right">
+                <td class="text-right">${formatCurrency(amount)}</td>
+                <td class="text-center">
                     <button class="action-btn" onclick="viewVoucher('${v.guid}')">
                         <i class="fas fa-eye"></i> View
                     </button>
@@ -586,7 +672,7 @@ function escapeHtml(str) {
 function showLoading() {
     document.getElementById('vouchersTableBody').innerHTML = `
         <tr>
-            <td colspan="7" class="loading-cell">
+            <td colspan="6" class="loading-cell">
                 <div class="loader">
                     <i class="fas fa-spinner fa-spin"></i>
                     <span>Loading vouchers...</span>
@@ -599,7 +685,7 @@ function showLoading() {
 function showEmptyState() {
     document.getElementById('vouchersTableBody').innerHTML = `
         <tr>
-            <td colspan="7" class="loading-cell">
+            <td colspan="6" class="loading-cell">
                 <div class="empty-state">
                     <i class="fas fa-exclamation-circle"></i>
                     <p>Failed to load vouchers</p>
@@ -633,3 +719,404 @@ document.addEventListener('keydown', (e) => {
         closeModal();
     }
 });
+
+// ========== Outstanding Functions ==========
+function showVoucherView() {
+    currentView = 'voucher';
+    
+    // Reset search placeholder for vouchers
+    const searchInput = document.getElementById('globalSearch');
+    searchInput.placeholder = 'Search vouchers, party, narration...';
+    
+    document.querySelector('.stats-grid').style.display = 'grid';
+    document.querySelector('.filters-card').style.display = 'block';
+    document.querySelector('.table-card').style.display = 'block';
+    document.getElementById('outstandingSection').style.display = 'none';
+}
+
+async function showOutstandingView(type) {
+    currentView = 'outstanding';
+    currentPartyType = type;
+    currentReportType = 'ledger';
+    billwisePage = 1;
+    
+    // Clear and update search placeholder
+    const searchInput = document.getElementById('globalSearch');
+    searchInput.value = '';
+    searchInput.placeholder = 'Search party name, bill no...';
+    
+    document.querySelector('.stats-grid').style.display = 'none';
+    document.querySelector('.filters-card').style.display = 'none';
+    document.querySelector('.table-card').style.display = 'none';
+    document.getElementById('outstandingSection').style.display = 'block';
+    
+    // Reset tabs to Ledger
+    document.querySelectorAll('.report-tab').forEach(tab => {
+        tab.classList.toggle('active', tab.dataset.report === 'ledger');
+    });
+    
+    const title = type === 'receivable' ? 'Receivable' : 'Payable';
+    document.getElementById('outstandingLabel').textContent = `${title} Outstanding`;
+    
+    // Initialize period dates (fast - no API call)
+    await initOutstandingPeriod();
+    
+    await switchOutstandingReport('ledger');
+}
+
+async function loadOutstandingData(type) {
+    const tbody = document.getElementById('outstandingTableBody');
+    tbody.innerHTML = '<tr><td colspan="5" class="loading-cell"><i class="fas fa-spinner fa-spin"></i> Loading...</td></tr>';
+    try {
+        const response = await fetch(`/api/data/outstanding?type=${type}&company=${encodeURIComponent(selectedCompany)}`);
+        const data = await response.json();
+        outstandingData = data.data || [];
+        renderOutstandingTable();
+        updateOutstandingStats();
+        showToast(`Loaded ${outstandingData.length} parties`, 'success');
+    } catch (error) {
+        console.error('Failed to load outstanding:', error);
+        tbody.innerHTML = '<tr><td colspan="5" class="loading-cell">Failed to load data</td></tr>';
+    }
+}
+
+function renderOutstandingTable() {
+    const tbody = document.getElementById('outstandingTableBody');
+    if (outstandingData.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="loading-cell">No data found</td></tr>';
+        return;
+    }
+    tbody.innerHTML = outstandingData.map(row => `
+        <tr>
+            <td>${row.ledger_name || '-'}</td>
+            <td class="text-right">${formatCurrency(row.opening || 0)}</td>
+            <td class="text-right">${formatCurrency(row.debit || 0)}</td>
+            <td class="text-right">${formatCurrency(row.credit || 0)}</td>
+            <td class="text-right" style="color: ${row.closing >= 0 ? '#16a34a' : '#dc2626'}; font-weight: 500;">${formatCurrency(row.closing || 0)}</td>
+        </tr>
+    `).join('');
+    document.getElementById('outstandingCount').textContent = `${outstandingData.length} records`;
+}
+
+function updateOutstandingStats() {
+    const total = outstandingData.reduce((sum, row) => sum + (row.closing || 0), 0);
+    document.getElementById('outstandingTotal').textContent = formatCurrency(Math.abs(total));
+    document.getElementById('outstandingParties').textContent = outstandingData.length;
+}
+
+// Current outstanding report type and party type
+let currentReportType = 'ledger';
+let currentPartyType = 'receivable';
+let billwisePage = 1;
+let billwisePageSize = 50;
+let outstandingFromDate = '';
+let outstandingToDate = '';
+
+// Initialize period dates - use today as default (fast, no API call)
+async function initOutstandingPeriod() {
+    const today = new Date();
+    const todayStr = today.toISOString().split('T')[0];
+    
+    // Set to_date to today
+    outstandingToDate = todayStr;
+    document.getElementById('outstandingToDate').value = todayStr;
+    
+    // Set from_date to start of financial year (April 1)
+    const year = today.getMonth() >= 3 ? today.getFullYear() : today.getFullYear() - 1;
+    outstandingFromDate = `${year}-04-01`;
+    document.getElementById('outstandingFromDate').value = outstandingFromDate;
+}
+
+// Period change handler
+function onPeriodChange() {
+    // Just update the values, don't auto-reload
+}
+
+// Apply period filter
+async function applyPeriodFilter() {
+    outstandingFromDate = document.getElementById('outstandingFromDate').value;
+    outstandingToDate = document.getElementById('outstandingToDate').value;
+    billwisePage = 1; // Reset to first page
+    await switchOutstandingReport(currentReportType);
+    showToast('Period filter applied', 'success');
+}
+
+// Reset period filter
+async function resetPeriodFilter() {
+    await initOutstandingPeriod();
+    billwisePage = 1;
+    await switchOutstandingReport(currentReportType);
+    showToast('Period reset to default', 'info');
+}
+
+// Switch Outstanding Report Type
+async function switchOutstandingReport(reportType) {
+    currentReportType = reportType;
+    
+    // Clear search input when switching reports
+    const searchInput = document.getElementById('outstandingSearch');
+    if (searchInput) searchInput.value = '';
+    
+    // Update tab active state
+    document.querySelectorAll('.report-tab').forEach(tab => {
+        tab.classList.toggle('active', tab.dataset.report === reportType);
+    });
+    
+    // Load data based on report type
+    const tbody = document.getElementById('outstandingTableBody');
+    tbody.innerHTML = '<tr><td colspan="7" class="loading-cell"><i class="fas fa-spinner fa-spin"></i> Loading...</td></tr>';
+    
+    try {
+        // Build period params
+        let periodParams = '';
+        if (outstandingFromDate) periodParams += `&from_date=${outstandingFromDate}`;
+        if (outstandingToDate) periodParams += `&to_date=${outstandingToDate}`;
+        
+        let url = '';
+        if (reportType === 'ledger') {
+            url = `/api/data/outstanding?type=${currentPartyType}&company=${encodeURIComponent(selectedCompany)}${periodParams}`;
+        } else if (reportType === 'billwise') {
+            url = `/api/data/outstanding/billwise?type=${currentPartyType}&company=${encodeURIComponent(selectedCompany)}&page=${billwisePage}&page_size=${billwisePageSize}${periodParams}`;
+        } else if (reportType === 'ledgerwise') {
+            url = `/api/data/outstanding/ledgerwise?type=${currentPartyType}&company=${encodeURIComponent(selectedCompany)}${periodParams}`;
+        } else if (reportType === 'ageing') {
+            url = `/api/data/outstanding/ageing?type=${currentPartyType}&company=${encodeURIComponent(selectedCompany)}${periodParams}`;
+        } else if (reportType === 'group') {
+            url = `/api/data/outstanding/group?type=${currentPartyType}&company=${encodeURIComponent(selectedCompany)}${periodParams}`;
+        }
+        
+        const response = await fetch(url);
+        const result = await response.json();
+        
+        renderOutstandingByType(reportType, result);
+        showToast(`Loaded ${reportType} report`, 'success');
+    } catch (error) {
+        console.error('Failed to load report:', error);
+        tbody.innerHTML = '<tr><td colspan="7" class="loading-cell">Failed to load data</td></tr>';
+    }
+}
+
+// Render Outstanding based on report type
+function renderOutstandingByType(reportType, result) {
+    const thead = document.getElementById('outstandingTableHead');
+    const tbody = document.getElementById('outstandingTableBody');
+    const title = currentPartyType === 'receivable' ? 'Receivable' : 'Payable';
+    
+    if (reportType === 'ledger') {
+        document.getElementById('outstandingTitle').textContent = `${title} - Ledger Outstanding`;
+        thead.innerHTML = `<tr><th>Party Name</th><th class="text-right">Opening</th><th class="text-right">Debit</th><th class="text-right">Credit</th><th class="text-right">Closing</th></tr>`;
+        
+        const data = result.data || [];
+        if (data.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" class="loading-cell">No data found</td></tr>';
+            return;
+        }
+        tbody.innerHTML = data.map(row => `
+            <tr>
+                <td>${row.ledger_name || '-'}</td>
+                <td class="text-right">${formatCurrency(row.opening || 0)}</td>
+                <td class="text-right">${formatCurrency(row.debit || 0)}</td>
+                <td class="text-right">${formatCurrency(row.credit || 0)}</td>
+                <td class="text-right" style="color: ${(row.closing || 0) >= 0 ? '#16a34a' : '#dc2626'}; font-weight: 500;">${formatCurrency(row.closing || 0)}</td>
+            </tr>
+        `).join('');
+        document.getElementById('outstandingCount').textContent = `${data.length} records`;
+        document.getElementById('outstandingTotal').textContent = formatCurrency(Math.abs(result.totals?.closing || 0));
+        document.getElementById('outstandingParties').textContent = data.length;
+        
+    } else if (reportType === 'billwise') {
+        document.getElementById('outstandingTitle').textContent = `${title} - Bill-wise Outstanding`;
+        thead.innerHTML = `<tr><th>Party Name</th><th>Bill No.</th><th>Bill Date</th><th>Due Date</th><th class="text-right">Pending</th><th class="text-right">Overdue Days</th></tr>`;
+        
+        const data = result.data || [];
+        const pagination = result.pagination || {};
+        
+        if (data.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" class="loading-cell">No data found</td></tr>';
+            return;
+        }
+        tbody.innerHTML = data.map(row => {
+            const sourceLabel = row.source === 'Opening' ? 
+                '<span class="source-badge opening">Opening</span>' : 
+                (row.source ? `<span class="source-badge">${row.source}</span>` : '');
+            return `<tr>
+                <td>${row.party_name || '-'}</td>
+                <td><div style="display: flex; flex-direction: column;"><span>${row.bill_no || '-'}</span>${sourceLabel}</div></td>
+                <td>${row.bill_date || '-'}</td>
+                <td>${row.due_date || '-'}</td>
+                <td class="text-right" style="color: #dc2626; font-weight: 500;">${formatCurrency(row.pending_amount || 0)}</td>
+                <td class="text-right">${row.overdue_days || 0}</td>
+            </tr>`;
+        }).join('');
+        
+        // Show pagination info
+        const pageInfo = pagination.total_count ? 
+            `Page ${pagination.page} of ${pagination.total_pages} (${pagination.total_count} bills)` : 
+            `${data.length} bills`;
+        document.getElementById('outstandingCount').textContent = pageInfo;
+        document.getElementById('outstandingTotal').textContent = formatCurrency(result.totals?.pending_amount || 0);
+        document.getElementById('outstandingParties').textContent = pagination.total_count || data.length;
+        
+        // Render pagination controls
+        renderBillwisePagination(pagination);
+        
+    } else if (reportType === 'ledgerwise') {
+        document.getElementById('outstandingTitle').textContent = `${title} - Ledger-wise Outstanding`;
+        thead.innerHTML = `<tr><th>Date</th><th>Bill No.</th><th class="text-right">Pending</th><th>Due Date</th><th class="text-right">Overdue</th></tr>`;
+        
+        const data = result.data || [];
+        if (data.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" class="loading-cell">No data found</td></tr>';
+            return;
+        }
+        
+        // Render grouped by party with subtotals (Tally-like format)
+        let html = '';
+        data.forEach(party => {
+            // Party header row
+            html += `<tr style="background: var(--primary-light); font-weight: 600;">
+                <td colspan="5" style="padding: 0.75rem 1rem; color: var(--primary-dark);">
+                    <i class="fas fa-user" style="margin-right: 0.5rem;"></i>${party.party_name}
+                </td>
+            </tr>`;
+            
+            // Bill rows
+            party.bills.forEach(bill => {
+                const sourceLabel = bill.source === 'Opening' ? 
+                    '<span class="source-badge opening">Opening</span>' : 
+                    (bill.source ? `<span class="source-badge">${bill.source}</span>` : '');
+                html += `<tr>
+                    <td style="padding-left: 2rem;"><div style="display: flex; flex-direction: column;"><span>${bill.bill_date || '-'}</span>${sourceLabel}</div></td>
+                    <td>${bill.bill_no || '-'}</td>
+                    <td class="text-right">${formatCurrency(bill.pending_amount || 0)}</td>
+                    <td>${bill.due_date || '-'}</td>
+                    <td class="text-right">${bill.overdue_days || 0}</td>
+                </tr>`;
+            });
+            
+            // Party subtotal row
+            html += `<tr style="background: var(--gray-100); font-weight: 500;">
+                <td colspan="2" style="text-align: right; padding-right: 1rem;">Subtotal:</td>
+                <td class="text-right" style="color: #dc2626;">${formatCurrency(party.party_total || 0)}</td>
+                <td colspan="2"></td>
+            </tr>`;
+        });
+        
+        tbody.innerHTML = html;
+        document.getElementById('outstandingCount').textContent = `${result.totals?.party_count || 0} parties, ${result.totals?.bill_count || 0} bills`;
+        document.getElementById('outstandingTotal').textContent = formatCurrency(result.totals?.grand_total || 0);
+        document.getElementById('outstandingParties').textContent = result.totals?.party_count || 0;
+        
+    } else if (reportType === 'ageing') {
+        document.getElementById('outstandingTitle').textContent = `${title} - Ageing Analysis`;
+        thead.innerHTML = `<tr><th>Party Name</th><th class="text-right">0-30 Days</th><th class="text-right">30-60 Days</th><th class="text-right">60-90 Days</th><th class="text-right">90+ Days</th><th class="text-right">Total</th></tr>`;
+        
+        const data = result.data || [];
+        if (data.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" class="loading-cell">No data found</td></tr>';
+            return;
+        }
+        tbody.innerHTML = data.map(row => `
+            <tr>
+                <td>${row.party_name || '-'}</td>
+                <td class="text-right">${formatCurrency(row.days_0_30 || 0)}</td>
+                <td class="text-right">${formatCurrency(row.days_30_60 || 0)}</td>
+                <td class="text-right">${formatCurrency(row.days_60_90 || 0)}</td>
+                <td class="text-right" style="color: #dc2626;">${formatCurrency(row.days_90_plus || 0)}</td>
+                <td class="text-right" style="font-weight: 500;">${formatCurrency(row.total || 0)}</td>
+            </tr>
+        `).join('');
+        document.getElementById('outstandingCount').textContent = `${data.length} parties`;
+        document.getElementById('outstandingTotal').textContent = formatCurrency(result.totals?.total || 0);
+        document.getElementById('outstandingParties').textContent = data.length;
+        
+    } else if (reportType === 'group') {
+        document.getElementById('outstandingTitle').textContent = `${title} - Group Summary`;
+        thead.innerHTML = `<tr><th>Group</th><th class="text-right">Parties</th><th class="text-right">Opening</th><th class="text-right">Debit</th><th class="text-right">Credit</th><th class="text-right">Closing</th></tr>`;
+        
+        const data = result.data || {};
+        tbody.innerHTML = `
+            <tr style="font-weight: 500; background: var(--gray-50);">
+                <td>${result.group_name || '-'}</td>
+                <td class="text-right">${data.party_count || 0}</td>
+                <td class="text-right">${formatCurrency(data.opening || 0)}</td>
+                <td class="text-right">${formatCurrency(data.debit || 0)}</td>
+                <td class="text-right">${formatCurrency(data.credit || 0)}</td>
+                <td class="text-right" style="color: ${(data.closing || 0) >= 0 ? '#16a34a' : '#dc2626'};">${formatCurrency(data.closing || 0)}</td>
+            </tr>
+        `;
+        document.getElementById('outstandingCount').textContent = '1 group';
+        document.getElementById('outstandingTotal').textContent = formatCurrency(Math.abs(data.closing || 0));
+        document.getElementById('outstandingParties').textContent = data.party_count || 0;
+    }
+}
+
+// Render billwise pagination controls
+function renderBillwisePagination(pagination) {
+    if (!pagination || !pagination.total_pages || pagination.total_pages <= 1) {
+        return;
+    }
+    
+    const container = document.getElementById('outstandingTableBody').parentElement.parentElement;
+    let paginationDiv = container.querySelector('.billwise-pagination');
+    
+    if (!paginationDiv) {
+        paginationDiv = document.createElement('div');
+        paginationDiv.className = 'billwise-pagination';
+        paginationDiv.style.cssText = 'display: flex; justify-content: center; gap: 0.5rem; padding: 1rem; border-top: 1px solid var(--gray-200);';
+        container.appendChild(paginationDiv);
+    }
+    
+    let html = '';
+    
+    // Previous button
+    html += `<button ${pagination.page === 1 ? 'disabled' : ''} onclick="goToBillwisePage(${pagination.page - 1})" style="padding: 0.5rem 1rem; border: 1px solid var(--gray-300); border-radius: 4px; background: white; cursor: pointer;">
+        <i class="fas fa-chevron-left"></i> Prev
+    </button>`;
+    
+    // Page info
+    html += `<span style="padding: 0.5rem 1rem; background: var(--gray-100); border-radius: 4px;">
+        Page ${pagination.page} of ${pagination.total_pages}
+    </span>`;
+    
+    // Next button
+    html += `<button ${pagination.page >= pagination.total_pages ? 'disabled' : ''} onclick="goToBillwisePage(${pagination.page + 1})" style="padding: 0.5rem 1rem; border: 1px solid var(--gray-300); border-radius: 4px; background: white; cursor: pointer;">
+        Next <i class="fas fa-chevron-right"></i>
+    </button>`;
+    
+    paginationDiv.innerHTML = html;
+}
+
+// Go to specific billwise page
+async function goToBillwisePage(page) {
+    billwisePage = page;
+    await switchOutstandingReport('billwise');
+}
+
+// Filter Outstanding table by search term (client-side filtering)
+function filterOutstandingTable() {
+    // Use global search box
+    const searchTerm = document.getElementById('globalSearch').value.toLowerCase().trim();
+    const tbody = document.getElementById('outstandingTableBody');
+    const rows = tbody.querySelectorAll('tr');
+    
+    let visibleCount = 0;
+    rows.forEach(row => {
+        const text = row.textContent.toLowerCase();
+        if (!searchTerm || text.includes(searchTerm)) {
+            row.style.display = '';
+            visibleCount++;
+        } else {
+            row.style.display = 'none';
+        }
+    });
+    
+    // Update count
+    const countEl = document.getElementById('outstandingCount');
+    if (countEl) {
+        const totalCount = rows.length;
+        if (searchTerm) {
+            countEl.textContent = `${visibleCount} of ${totalCount} records`;
+        }
+    }
+}
