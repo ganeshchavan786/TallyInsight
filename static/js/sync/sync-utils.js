@@ -1,6 +1,40 @@
 // ==========================================
 // SYNC UTILS - Date/Period Utilities & Navigation Helpers
 // ==========================================
+/*
+================================================================================
+DEVELOPER NOTES
+================================================================================
+File: sync-utils.js
+Purpose: Utility functions for date formatting, period extraction, navigation
+
+FUNCTIONS:
+----------
+1. formatDateTimeShort(dateStr) - Format: "11 Jan 12:39 pm"
+2. formatDateDisplay(dateStr) - Format: "1 Apr 2025"
+3. formatDate(dateStr) - Format: "YYYY-MM-DD" for API
+4. parseTallyDate(dateStr) - Parse Tally date formats
+5. extractPeriodFromName(name) - Extract FY from company name
+6. goToCompanyDashboard(name) - Navigate to dashboard.html
+7. goToCompanyAudit(name) - Navigate to audit.html
+8. toggleDropdown(id) - Toggle dropdown menu
+9. closeAllDropdowns() - Close all open dropdowns
+10. editPeriod(name) - Show period edit modal
+11. savePeriod(name) - Save edited period
+
+BUSINESS LOGIC:
+---------------
+- Company names often contain financial year (e.g., "MATOSHRI 18-24")
+- extractPeriodFromName() parses this to get Apr 2018 - Mar 2024
+- Tally dates come in formats: "1-Apr-25", "2025-04-01", "1-Apr-2025"
+- parseTallyDate() converts all formats to YYYY-MM-DD
+
+DEPENDENCIES:
+-------------
+- Uses global: companyPeriods (from sync-core.js)
+- Uses: showToast() (from common.js)
+================================================================================
+*/
 
 // Format date time short
 function formatDateTimeShort(dateStr) {

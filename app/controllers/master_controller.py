@@ -1,6 +1,42 @@
 """
 Master Controller
-Handles master data API endpoints (Groups, Ledgers, Stock Items)
+Handles master data APIs (Groups, Ledgers, Stock Items)
+
+================================================================================
+DEVELOPER NOTES
+================================================================================
+File: master_controller.py
+Purpose: Handle master data queries (Groups, Ledgers, Stock Items)
+Prefix: /api/data
+
+BUSINESS LOGIC:
+---------------
+1. Groups API (/groups):
+   - Returns all account groups from mst_group table
+   - Used in: Dropdown filters, Group-wise reports
+   
+2. Ledgers API (/ledgers):
+   - Returns ledgers with pagination (limit/offset)
+   - Returns both 'data' array and 'ledgers' array for compatibility
+   - 'data' array: Full ledger objects for tables
+   - 'ledgers' array: Just names for dropdowns
+   - Used in: Ledger dropdowns, Ledger list tables
+   
+3. Stock Items API (/stock-items):
+   - Returns all stock items from mst_stock_item table
+   - Used in: Inventory reports, Stock dropdowns
+
+IMPORTANT:
+----------
+- All APIs require 'company' parameter for multi-company support
+- Database service is loaded via factory pattern (get_database_service)
+- Response format must maintain backward compatibility with frontend
+
+DEPENDENCIES:
+-------------
+- SQLiteDatabaseService from services/database/sqlite_adapter.py
+- Factory from services/database/factory.py
+================================================================================
 """
 
 from fastapi import APIRouter, Query, HTTPException

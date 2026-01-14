@@ -1,6 +1,50 @@
 // ==========================================
 // SYNC SCHEDULE - Auto Sync Schedule Functions
 // ==========================================
+/*
+================================================================================
+DEVELOPER NOTES
+================================================================================
+File: sync-schedule.js
+Purpose: Handle auto sync scheduling (Sync Options tab)
+
+FUNCTIONS:
+----------
+1. setSyncInterval(minutes) - Set sync interval (5/15/30/60 min)
+2. saveScheduleSettings() - Save settings to localStorage
+3. loadScheduleSettings() - Load settings from localStorage
+4. updateAutoSyncStatus(enabled) - Update UI status text
+5. startAutoSync() - Start auto sync timer
+6. stopAutoSync() - Stop auto sync timer
+7. toggleAutoSync() - Toggle auto sync on/off
+
+AUTO SYNC FLOW:
+---------------
+1. User selects interval (5/15/30/60 minutes)
+2. User enables Auto Sync toggle
+3. saveScheduleSettings() saves to localStorage
+4. startAutoSync() creates setInterval with selected interval
+5. On each interval: Runs incremental sync for ALL synced companies
+6. User can disable anytime with toggle
+
+STORAGE:
+--------
+- localStorage.syncIntervalMinutes: Selected interval
+- localStorage.autoSyncEnabled: true/false
+
+BUSINESS LOGIC:
+---------------
+- Auto sync runs INCREMENTAL sync (not full) to minimize load
+- Syncs ALL companies in sync_companies table
+- Continues running even after page refresh (if enabled)
+
+DEPENDENCIES:
+-------------
+- Uses: apiCall(), showToast() (from common.js)
+- Uses: syncIntervalMinutes, autoSyncTimer (from sync-core.js)
+- Uses: updateSyncStatus() (from sync-progress.js)
+================================================================================
+*/
 
 // Set Sync Interval
 function setSyncInterval(minutes) {

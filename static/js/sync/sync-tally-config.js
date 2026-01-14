@@ -1,6 +1,58 @@
 // ==========================================
 // SYNC TALLY CONFIG - Tally Configuration Tab Functions
 // ==========================================
+/*
+================================================================================
+DEVELOPER NOTES
+================================================================================
+File: sync-tally-config.js
+Purpose: Handle Tally Configuration tab (connection settings)
+
+FUNCTIONS:
+----------
+1. loadTallyConfig() - Load Tally host/port from /api/config
+2. checkTallyConnectionStatus() - Check and display connection status
+3. saveTallyConfig() - Save config and auto-test connection
+4. testTallyConnection() - Manual test with SweetAlert feedback
+
+TALLY CONNECTION:
+-----------------
+- Default: localhost:9000
+- Tally must be running with ODBC server enabled
+- Port 9000 is Tally's default XML/ODBC port
+
+UI ELEMENTS:
+------------
+- Host input: Tally server address (usually localhost)
+- Port input: Tally port (usually 9000)
+- Save button: Saves config and tests connection
+- Test Connection button: Tests without saving
+- Connection Status: Shows connected/disconnected with details
+
+STATUS DISPLAY:
+---------------
+Connected: Green checkmark, shows server/port/current company
+Disconnected: Red X, shows error message
+Checking: Spinner animation
+
+ERROR HANDLING:
+---------------
+- Connection failed: SweetAlert with troubleshooting checklist
+- Success: SweetAlert with green confirmation
+
+API ENDPOINTS:
+--------------
+- GET /api/config - Get current configuration
+- PUT /api/config - Update configuration
+- POST /api/config/tally/test - Test Tally connection
+- GET /api/health - Get health status including Tally
+
+DEPENDENCIES:
+-------------
+- Uses: apiCall(), showToast() (from common.js)
+- Uses: Swal (SweetAlert2 library)
+================================================================================
+*/
 
 // Load Tally Config from API
 async function loadTallyConfig() {

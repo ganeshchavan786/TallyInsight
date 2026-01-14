@@ -1,6 +1,56 @@
 """
 Outstanding Controller
 Handles outstanding report API endpoints (Receivable/Payable, Billwise, Ledgerwise, Ageing)
+
+================================================================================
+DEVELOPER NOTES
+================================================================================
+File: outstanding_controller.py
+Purpose: Handle outstanding/dues report queries
+Prefix: /api/data
+
+BUSINESS LOGIC:
+---------------
+1. Outstanding Summary (/outstanding):
+   - type=receivable: Sundry Debtors with positive balance (customers owe us)
+   - type=payable: Sundry Creditors with positive balance (we owe suppliers)
+   - Calculates: total_amount, count of parties
+   
+2. Bill-wise Outstanding (/outstanding/billwise):
+   - Shows individual pending bills
+   - Source: trn_bill table (bill allocations)
+   - Columns: bill_name, bill_date, opening, pending
+   
+3. Ledger-wise Outstanding (/outstanding/ledgerwise):
+   - Groups outstanding by ledger (party)
+   - Shows: ledger_name, total_pending, bill_count
+   
+4. Ageing Report (/outstanding/ageing):
+   - Buckets: 0-30, 30-60, 60-90, 90+ days
+   - Calculated from bill_date vs current_date
+   
+5. Group Outstanding (/outstanding/group):
+   - Groups by parent group (e.g., all Sundry Debtors)
+
+TALLY CONCEPTS:
+---------------
+- Sundry Debtors: Customers who owe money (Receivable)
+- Sundry Creditors: Suppliers we owe money (Payable)
+- Bill: Invoice reference for tracking payments
+- Opening: Original bill amount
+- Pending: Remaining unpaid amount
+
+IMPORTANT:
+----------
+- Positive pending = amount due
+- Negative pending = advance payment
+- Bill matching done via bill_name in trn_bill
+
+DEPENDENCIES:
+-------------
+- trn_bill: Bill allocations from vouchers
+- mst_ledger: Ledger master for party details
+================================================================================
 """
 
 from fastapi import APIRouter, Query, HTTPException

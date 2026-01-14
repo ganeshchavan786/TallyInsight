@@ -1,6 +1,50 @@
 // ==========================================
 // SYNC COMPANIES - Company List Management
 // ==========================================
+/*
+================================================================================
+DEVELOPER NOTES
+================================================================================
+File: sync-companies.js
+Purpose: Load and display company lists (Tally companies & synced companies)
+
+FUNCTIONS:
+----------
+1. loadSyncedCompanies() - Load synced companies (right panel)
+2. loadCompanies() - Load Tally companies (left panel)
+
+UI PANELS:
+----------
+LEFT PANEL (Companies from Tally):
+- Shows NEW companies not yet synced
+- Each company shows: name, period, Sync button
+- Period auto-extracted from company name or Tally data
+
+RIGHT PANEL (Synced Companies):
+- Shows companies already synced to database
+- Each company shows: name, sync count, last sync time, period
+- Actions: Dashboard, Audit, Full Sync, Incremental Sync, Delete
+
+BUSINESS LOGIC:
+---------------
+- loadCompanies() calls /api/companies (Tally) and /api/data/synced-companies (DB)
+- Filters out already synced companies from left panel
+- If Tally not running: Shows SweetAlert error
+- If all synced: Shows "All companies already synced" message
+
+ERROR HANDLING:
+---------------
+- Tally not connected: SweetAlert with checklist
+- API error: Shows error message in panel
+
+DEPENDENCIES:
+-------------
+- Uses: apiCall() (from common.js)
+- Uses: formatDateTimeShort(), formatDateDisplay(), extractPeriodFromName() (from sync-utils.js)
+- Uses: companyPeriods (from sync-core.js)
+- Uses: Swal (SweetAlert2 library)
+================================================================================
+*/
 
 // Load Synced Companies - Show already synced companies with Dashboard/Audit links
 async function loadSyncedCompanies() {

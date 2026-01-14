@@ -1,6 +1,55 @@
 // ==========================================
 // SYNC ACTIONS - All Sync Operations
 // ==========================================
+/*
+================================================================================
+DEVELOPER NOTES
+================================================================================
+File: sync-actions.js
+Purpose: Handle all sync operations (Full, Incremental, Delete)
+
+FUNCTIONS:
+----------
+1. syncCompanyFull(name) - Full sync for SYNCED company (with confirmation)
+2. incrementalSyncCompany(name) - Incremental sync (changes only)
+3. resyncCompany(name) - Re-sync all data (alias for full sync)
+4. deleteCompany(name) - Delete company from database
+5. syncCompany(name) - Sync NEW company (first time)
+6. startSync(type) - Batch sync for selected companies
+
+SYNC TYPES:
+-----------
+FULL SYNC:
+- Deletes ALL existing data for company
+- Fetches fresh data from Tally
+- Use when: Data corruption, major changes, first sync
+
+INCREMENTAL SYNC:
+- Compares alter_id with last sync
+- Only fetches changed/new records
+- Use when: Regular updates, faster sync
+
+BUSINESS LOGIC:
+---------------
+- Full sync shows warning confirmation (data will be deleted)
+- Period (from_date, to_date) passed to API for filtering
+- After sync starts, polling begins via syncInterval
+- On completion, both company lists are refreshed
+
+API ENDPOINTS:
+--------------
+- POST /api/sync/full?company=X&from_date=Y&to_date=Z
+- POST /api/sync/incremental?company=X&from_date=Y&to_date=Z
+- DELETE /api/data/company/{name}
+
+DEPENDENCIES:
+-------------
+- Uses: apiCall(), showToast() (from common.js)
+- Uses: companyPeriods, syncInterval (from sync-core.js)
+- Uses: showSyncProgress(), showCircularProgress() (from sync-progress.js)
+- Uses: window.syncedCompaniesData (set by sync-companies.js)
+================================================================================
+*/
 
 // Full Sync for synced company
 async function syncCompanyFull(companyName) {

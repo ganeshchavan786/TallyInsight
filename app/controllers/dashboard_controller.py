@@ -1,6 +1,56 @@
 """
 Dashboard Controller
 Handles dashboard API endpoints (Counts, Companies, Query)
+
+================================================================================
+DEVELOPER NOTES
+================================================================================
+File: dashboard_controller.py
+Purpose: Handle dashboard statistics and company management
+Prefix: /api/data
+
+BUSINESS LOGIC:
+---------------
+1. Counts API (/counts):
+   - Returns row counts for all tables (master + transaction)
+   - Used in: Dashboard page to show data overview
+   - Parameter: company_name (required for filtering)
+   
+2. Synced Companies API (/synced-companies):
+   - Returns list of companies synced to database
+   - Source: sync_companies table
+   - Shows: company_name, last_sync_at, sync_count, books_from, books_to
+   
+3. Companies API (/companies):
+   - Returns company details from database
+   - Used in: Company selection dropdown
+   
+4. Delete Company API (DELETE /company/{name}):
+   - Deletes all data for a company from all tables
+   - Cascades: master tables, transaction tables, sync_companies
+   - WARNING: Irreversible operation!
+   
+5. Query API (POST /query):
+   - Executes custom SQL query (SELECT only)
+   - Used in: Debug/admin tools
+   - Security: Only SELECT queries allowed
+
+DASHBOARD METRICS:
+------------------
+Master Tables: mst_group, mst_ledger, mst_vouchertype, mst_stock_item, etc.
+Transaction Tables: trn_voucher, trn_accounting, trn_inventory, trn_bill, etc.
+
+IMPORTANT:
+----------
+- company_name parameter is REQUIRED for counts API
+- Delete operation removes data from ALL tables for that company
+- Query API is for debugging only, not for production use
+
+DEPENDENCIES:
+-------------
+- sync_companies: Tracks synced company metadata
+- All mst_* and trn_* tables for counts
+================================================================================
 """
 
 from fastapi import APIRouter, Query, HTTPException

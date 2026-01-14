@@ -1,6 +1,45 @@
 // ==========================================
 // SYNC PROGRESS - Progress UI & Status Updates
 // ==========================================
+/*
+================================================================================
+DEVELOPER NOTES
+================================================================================
+File: sync-progress.js
+Purpose: Handle sync progress UI and real-time status updates
+
+FUNCTIONS:
+----------
+1. showSyncProgress(companyName) - Initialize progress tracking
+2. hideSyncProgress() - Clear interval and hide progress
+3. updateSyncStatus() - Poll /api/sync/status every 1 second
+4. showCircularProgress(companyName) - Show circular progress indicator
+5. hideCircularProgress() - Hide all progress indicators
+6. updateCircularProgress(companyName, percent) - Update progress percentage
+
+SYNC STATUS FLOW:
+-----------------
+1. User clicks Sync button
+2. showCircularProgress() shows spinner on that company
+3. setInterval calls updateSyncStatus() every 1 second
+4. updateSyncStatus() calls /api/sync/status API
+5. API returns: {status, progress, current_table, company}
+6. updateCircularProgress() updates the percentage
+7. When status='completed' or 'error', hideSyncProgress() clears interval
+
+CIRCULAR PROGRESS:
+------------------
+- SVG circle with stroke-dashoffset animation
+- Circumference = 2 * PI * radius = 125.66
+- Offset = circumference - (percent/100 * circumference)
+
+DEPENDENCIES:
+-------------
+- Uses: apiCall() (from common.js)
+- Uses: syncInterval (from sync-core.js)
+- Uses: loadCompanies(), loadSyncedCompanies() (from sync-companies.js)
+================================================================================
+*/
 
 // Show Sync Progress (now only updates hidden elements for status tracking)
 function showSyncProgress(companyName) {

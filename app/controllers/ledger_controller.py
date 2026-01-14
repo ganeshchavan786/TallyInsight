@@ -1,6 +1,54 @@
 """
 Ledger Controller
 Handles ledger report API endpoints (Ledger Report, Ledger Billwise)
+
+================================================================================
+DEVELOPER NOTES
+================================================================================
+File: ledger_controller.py
+Purpose: Handle ledger statement and bill-wise report queries
+Prefix: /api/data
+
+BUSINESS LOGIC:
+---------------
+1. Ledger Report (/ledger-report):
+   - Shows ledger statement like Tally's Ledger Vouchers
+   - Columns: date, voucher_type, voucher_no, particulars, debit, credit, balance
+   - Running balance calculated: opening + cumulative transactions
+   - Used in: Ledger statement page
+   
+2. Ledger Bill-wise (/ledger-billwise):
+   - Shows pending bills for a specific ledger (party)
+   - Columns: bill_name, bill_date, voucher_type, opening, pending
+   - On Account = Bills Total - Ledger Opening Balance
+   - Used in: Bill-wise tab in Voucher Report page
+
+CALCULATION FORMULAS:
+---------------------
+- Running Balance = Opening Balance + SUM(Debit) - SUM(Credit)
+- On Account = Total of all bills - Ledger's opening balance
+- Pending = Original bill amount - Payments received
+
+TALLY CONCEPTS:
+---------------
+- Ledger Statement: Chronological list of all transactions
+- Bill-wise: Tracks individual invoices and their payments
+- On Account: Amount not allocated to any specific bill
+
+IMPORTANT:
+----------
+- Debit = Positive amount (we receive/asset increases)
+- Credit = Negative amount (we pay/liability increases)
+- For Sundry Debtors: Debit = Sales, Credit = Receipt
+- For Sundry Creditors: Credit = Purchase, Debit = Payment
+
+DEPENDENCIES:
+-------------
+- mst_ledger: Ledger master with opening balance
+- trn_accounting: Transaction entries
+- trn_bill: Bill allocations
+- trn_voucher: Voucher headers for date/type
+================================================================================
 """
 
 from fastapi import APIRouter, Query, HTTPException

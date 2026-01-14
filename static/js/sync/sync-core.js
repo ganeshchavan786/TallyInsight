@@ -1,6 +1,42 @@
 // ==========================================
 // SYNC CORE - Global Variables, Tab Switching, Initialize
 // ==========================================
+/*
+================================================================================
+DEVELOPER NOTES
+================================================================================
+File: sync-core.js
+Purpose: Global state management, tab switching, page initialization
+
+GLOBAL VARIABLES:
+-----------------
+- selectedCompanies: Array of companies selected for batch sync
+- syncInterval: setInterval ID for status polling (cleared on completion)
+- companyPeriods: Object storing {companyName: {from, to}} for each company
+- autoSyncTimer: setInterval ID for auto sync
+- syncIntervalMinutes: Auto sync interval in minutes (default 60)
+
+FUNCTIONS:
+----------
+1. switchTab(tabName) - Switch between Company Sync, Sync Options, Tally Config tabs
+2. toggleCompany(name) - Toggle company selection for batch operations
+3. refreshCompanies() - Reload company list from Tally
+
+INITIALIZATION:
+---------------
+On DOMContentLoaded:
+1. Load companies from Tally (left panel)
+2. Load synced companies from database (right panel)
+3. Restore saved sync interval from localStorage
+4. Restore auto sync setting and start if enabled
+
+DEPENDENCIES:
+-------------
+- Requires: sync-utils.js (loaded before this file)
+- Uses: loadCompanies(), loadSyncedCompanies() (from sync-companies.js)
+- Uses: updateAutoSyncStatus(), startAutoSync() (from sync-schedule.js)
+================================================================================
+*/
 
 // Global Variables
 let selectedCompanies = [];

@@ -1,6 +1,44 @@
 """
 Voucher Controller
 Handles voucher API endpoints (Vouchers, Voucher Details)
+
+================================================================================
+DEVELOPER NOTES
+================================================================================
+File: voucher_controller.py
+Purpose: Handle voucher transaction queries
+Prefix: /api/data
+
+BUSINESS LOGIC:
+---------------
+1. Vouchers API (/vouchers):
+   - Returns vouchers from trn_voucher table
+   - Filters: voucher_type, date range, company
+   - Used in: Voucher list, Transaction reports
+   
+2. Voucher Details API (/vouchers/{guid}/details):
+   - Returns single voucher with all line items
+   - Joins: trn_accounting (ledger entries), trn_inventory (stock entries)
+   - Used in: Voucher detail popup/page
+
+TALLY VOUCHER TYPES:
+--------------------
+- Sales, Purchase, Receipt, Payment, Journal
+- Contra, Credit Note, Debit Note
+- Stock Journal, Physical Stock, etc.
+
+IMPORTANT:
+----------
+- GUID is unique identifier for each voucher
+- Date format: YYYY-MM-DD
+- Amount: Positive for debit, Negative for credit
+
+DEPENDENCIES:
+-------------
+- trn_voucher: Voucher headers
+- trn_accounting: Accounting entries (ledger-wise)
+- trn_inventory: Inventory entries (item-wise)
+================================================================================
 """
 
 from fastapi import APIRouter, Query, HTTPException
