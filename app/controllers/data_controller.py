@@ -61,7 +61,7 @@ async def get_ledgers(
     try:
         await database_service.connect()
         
-        query = "SELECT DISTINCT name FROM mst_ledger"
+        query = "SELECT * FROM mst_ledger"
         params = []
         conditions = []
         
@@ -83,8 +83,18 @@ async def get_ledgers(
         
         data = await database_service.fetch_all(query, tuple(params))
         
-        # Return ledgers array for dropdown
-        return {"ledgers": [row['name'] for row in data], "total": len(data)}
+        # Get total count
+        count_query = "SELECT COUNT(*) FROM mst_ledger"
+        if conditions:
+            count_query += " WHERE " + " AND ".join(conditions)
+        total = await database_service.fetch_scalar(count_query, tuple(params))
+        
+        # Return both formats - data for dashboard, ledgers for dropdown
+        return {
+            "total": total,
+            "data": data,
+            "ledgers": [row['name'] for row in data]
+        }
     except Exception as e:
         logger.error(f"Failed to get ledgers: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -262,7 +272,7 @@ async def get_table_counts(company: Optional[str] = None):
     """Get row counts for all tables, optionally filtered by company"""
     try:
         await database_service.connect()
-        counts = await database_service.get_all_table_counts(company=company)
+        counts = await database_service.get_all_table_counts(company_name=company)
         return counts
     except Exception as e:
         logger.error(f"Failed to get counts: {e}")
