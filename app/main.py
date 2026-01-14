@@ -13,12 +13,17 @@ from pathlib import Path
 from .config import config
 from .utils.logger import setup_logger, logger
 from .controllers.sync_controller import router as sync_router
-from .controllers.data_controller import router as data_router
 from .controllers.config_controller import router as config_router
 from .controllers.health_controller import router as health_router
 from .controllers.log_controller import router as log_router
 from .controllers.debug_controller import router as debug_router
 from .controllers.audit_controller import router as audit_router
+# Separated controllers (from data_controller.py)
+from .controllers.master_controller import router as master_router
+from .controllers.voucher_controller import router as voucher_router
+from .controllers.outstanding_controller import router as outstanding_router
+from .controllers.ledger_controller import router as ledger_router
+from .controllers.dashboard_controller import router as dashboard_router
 
 
 # Setup logging
@@ -72,12 +77,17 @@ if static_path.exists():
 
 # Include routers
 app.include_router(sync_router, prefix="/api/sync", tags=["Sync"])
-app.include_router(data_router, prefix="/api/data", tags=["Data"])
 app.include_router(config_router, prefix="/api/config", tags=["Config"])
 app.include_router(health_router, prefix="/api/health", tags=["Health"])
 app.include_router(log_router, prefix="/api/logs", tags=["Logs"])
 app.include_router(debug_router, prefix="/api/debug", tags=["Debug"])
 app.include_router(audit_router)
+# Separated data controllers
+app.include_router(master_router, prefix="/api/data", tags=["Master Data"])
+app.include_router(voucher_router, prefix="/api/data", tags=["Vouchers"])
+app.include_router(outstanding_router, prefix="/api/data", tags=["Outstanding"])
+app.include_router(ledger_router, prefix="/api/data", tags=["Ledger Reports"])
+app.include_router(dashboard_router, prefix="/api/data", tags=["Dashboard"])
 
 
 @app.get("/")
