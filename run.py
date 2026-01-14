@@ -3,8 +3,17 @@ Tally FastAPI Database Loader
 Application Runner
 """
 
+import os
+import sys
 import uvicorn
 import argparse
+
+# Handle PyInstaller bundled app - set working directory to exe location
+if getattr(sys, 'frozen', False):
+    # Running as compiled exe
+    application_path = os.path.dirname(sys.executable)
+    os.chdir(application_path)
+
 from app.config import config
 
 

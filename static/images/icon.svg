@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#2563eb;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#1d4ed8;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="80" fill="url(#grad)"/>
+  <g fill="white">
+    <!-- Database icon -->
+    <ellipse cx="256" cy="160" rx="120" ry="40"/>
+    <path d="M136 160v60c0 22 54 40 120 40s120-18 120-40v-60c0 22-54 40-120 40s-120-18-120-40z"/>
+    <path d="M136 220v60c0 22 54 40 120 40s120-18 120-40v-60c0 22-54 40-120 40s-120-18-120-40z"/>
+    <path d="M136 280v60c0 22 54 40 120 40s120-18 120-40v-60c0 22-54 40-120 40s-120-18-120-40z"/>
+    <!-- Sync arrows -->
+    <path d="M380 340l40 40-40 40" stroke="white" stroke-width="16" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M420 380h-80" stroke="white" stroke-width="16" stroke-linecap="round"/>
+    <path d="M132 380l-40-40 40-40" stroke="white" stroke-width="16" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M92 340h80" stroke="white" stroke-width="16" stroke-linecap="round"/>
+  </g>
+</svg>

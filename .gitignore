@@ -64,3 +64,12 @@ csv/
 .cache/
 .pytest_cache/
 .mypy_cache/
+
+# Electron
+electron/node_modules/
+dist-electron/
+dist-installer/
+
+# PyInstaller
+build/
+*.spec

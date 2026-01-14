@@ -1,0 +1,32 @@
+{
+  "name": "Tally Database Loader",
+  "short_name": "TallySync",
+  "description": "Sync Tally data to SQLite database",
+  "start_url": "/sync.html",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#2563eb",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/static/images/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["business", "productivity"],
+  "screenshots": [],
+  "shortcuts": [
+    {
+      "name": "Sync Data",
+      "url": "/sync.html",
+      "description": "Open sync settings"
+    },
+    {
+      "name": "Dashboard",
+      "url": "/dashboard.html",
+      "description": "View dashboard"
+    }
+  ]
+}
