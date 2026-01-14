@@ -282,6 +282,16 @@ async function loadCompanies() {
         
         if (!data.companies || data.companies.length === 0) {
             list.innerHTML = '<div class="empty-state"><i class="fas fa-building"></i><p>No companies found in Tally. Make sure Tally is running.</p></div>';
+            // Show SweetAlert for Tally not running
+            if (typeof Swal !== 'undefined') {
+                Swal.fire({
+                    icon: 'warning',
+                    title: '<strong style="color: #dc3545;">Tally Not Connected</strong>',
+                    html: '<p style="font-size: 16px;"><strong style="color: #856404;">No companies found in Tally.</strong></p><p>Make sure <strong>Tally is running</strong> and has companies open.</p>',
+                    confirmButtonColor: '#3085d6',
+                    confirmButtonText: 'OK'
+                });
+            }
             return;
         }
         
@@ -334,6 +344,16 @@ async function loadCompanies() {
         }).join('');
     } catch (error) {
         list.innerHTML = `<div class="empty-state"><i class="fas fa-exclamation-triangle"></i><p>Error: ${error.message}</p></div>`;
+        // Show SweetAlert for connection error
+        if (typeof Swal !== 'undefined') {
+            Swal.fire({
+                icon: 'error',
+                title: '<strong style="color: #dc3545;">Tally Connection Failed</strong>',
+                html: '<p style="font-size: 16px;"><strong style="color: #721c24;">Unable to connect to Tally.</strong></p><p>Please check:</p><ul style="text-align: left;"><li>Tally is <strong>running</strong></li><li>Tally port is <strong>9000</strong></li><li>Tally has companies <strong>open</strong></li></ul>',
+                confirmButtonColor: '#dc3545',
+                confirmButtonText: 'OK'
+            });
+        }
     }
 }
 
@@ -895,13 +915,40 @@ async function testTallyConnection() {
         
         if (result.connected) {
             showToast('Connection successful!', 'success');
+            if (typeof Swal !== 'undefined') {
+                Swal.fire({
+                    icon: 'success',
+                    title: '<strong style="color: #28a745;">Connected!</strong>',
+                    html: '<p style="font-size: 16px;"><strong>Tally is running</strong> and accessible.</p>',
+                    confirmButtonColor: '#28a745',
+                    confirmButtonText: 'OK'
+                });
+            }
         } else {
             showToast('Connection failed: ' + (result.error || 'Unknown error'), 'error');
+            if (typeof Swal !== 'undefined') {
+                Swal.fire({
+                    icon: 'error',
+                    title: '<strong style="color: #dc3545;">Connection Failed</strong>',
+                    html: '<p style="font-size: 16px;"><strong style="color: #721c24;">Unable to connect to Tally.</strong></p><p>Please check:</p><ul style="text-align: left;"><li>Tally is <strong>running</strong></li><li>Tally port is <strong>9000</strong></li><li>Tally has companies <strong>open</strong></li></ul>',
+                    confirmButtonColor: '#dc3545',
+                    confirmButtonText: 'OK'
+                });
+            }
         }
         
         checkTallyConnectionStatus();
     } catch (error) {
         showToast(`Connection test failed: ${error.message}`, 'error');
+        if (typeof Swal !== 'undefined') {
+            Swal.fire({
+                icon: 'error',
+                title: '<strong style="color: #dc3545;">Connection Failed</strong>',
+                html: '<p style="font-size: 16px;"><strong style="color: #721c24;">Unable to connect to Tally.</strong></p><p>Error: ' + error.message + '</p><p>Please check:</p><ul style="text-align: left;"><li>Tally is <strong>running</strong></li><li>Tally port is <strong>9000</strong></li><li>Tally has companies <strong>open</strong></li></ul>',
+                confirmButtonColor: '#dc3545',
+                confirmButtonText: 'OK'
+            });
+        }
     }
 }
 
