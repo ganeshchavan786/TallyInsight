@@ -1,15 +1,20 @@
 # Tally FastAPI Database Loader - Developer Guide
 
+**Version:** v1.8.1  
+**Last Updated:** 2026-01-14
+
 ## Table of Contents
 1. [Architecture Overview](#architecture-overview)
 2. [Data Flow](#data-flow)
 3. [File Structure](#file-structure)
-4. [Core Services](#core-services)
-5. [Sync Logic](#sync-logic)
-6. [API Endpoints](#api-endpoints)
-7. [Database Schema](#database-schema)
-8. [Configuration Files](#configuration-files)
-9. [Troubleshooting](#troubleshooting)
+4. [Controllers (API Layer)](#controllers-api-layer)
+5. [Frontend JavaScript Modules](#frontend-javascript-modules)
+6. [Core Services](#core-services)
+7. [Sync Logic](#sync-logic)
+8. [API Endpoints](#api-endpoints)
+9. [Database Schema](#database-schema)
+10. [Configuration Files](#configuration-files)
+11. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -45,12 +50,13 @@
 
 | Component | File | Purpose |
 |-----------|------|---------|
-| **Controllers** | `app/controllers/*.py` | API endpoints (REST) |
+| **Controllers** | `app/controllers/*.py` | API endpoints (REST) - Separated by domain |
 | **Sync Service** | `app/services/sync_service.py` | Main sync orchestration |
 | **Database Service** | `app/services/database_service.py` | SQLite operations |
 | **Tally Service** | `app/services/tally_service.py` | Tally HTTP communication |
 | **XML Builder** | `app/services/xml_builder.py` | TDL XML generation |
 | **Queue Service** | `app/services/sync_queue_service.py` | Multi-company queue |
+| **Frontend JS** | `static/js/sync/*.js` | Modular JavaScript (7 files) |
 
 ---
 
@@ -200,13 +206,21 @@
 tally-fastapi/
 ├── app/
 │   ├── __init__.py
-│   ├── main.py                      # FastAPI app entry point
+│   ├── main.py                      # FastAPI app entry point, router registration
 │   ├── config.py                    # Configuration loader
-│   ├── controllers/
-│   │   ├── __init__.py
-│   │   ├── sync_controller.py       # Sync API endpoints
-│   │   ├── data_controller.py       # Data query endpoints
-│   │   └── health_controller.py     # Health check endpoint
+│   ├── controllers/                 # ⭐ API Controllers (Separated by domain)
+│   │   ├── __init__.py              # Exports all routers
+│   │   ├── sync_controller.py       # /api/sync/* - Sync operations
+│   │   ├── master_controller.py     # /api/data/* - Groups, Ledgers, Stock
+│   │   ├── voucher_controller.py    # /api/data/* - Vouchers
+│   │   ├── outstanding_controller.py # /api/data/* - Outstanding reports
+│   │   ├── ledger_controller.py     # /api/data/* - Ledger reports
+│   │   ├── dashboard_controller.py  # /api/data/* - Dashboard, counts
+│   │   ├── config_controller.py     # /api/config/* - Tally configuration
+│   │   ├── health_controller.py     # /api/health/* - Health checks
+│   │   ├── audit_controller.py      # /api/audit/* - Audit trail
+│   │   ├── log_controller.py        # /api/logs/* - Log viewing
+│   │   └── debug_controller.py      # /api/debug/* - Debug tools
 │   ├── services/
 │   │   ├── __init__.py
 │   │   ├── sync_service.py          # ⭐ Main sync orchestration
@@ -218,15 +232,130 @@ tally-fastapi/
 │       ├── __init__.py
 │       ├── logger.py                # Logging configuration
 │       └── decorators.py            # Utility decorators
+├── static/                          # ⭐ Frontend Assets
+│   ├── css/
+│   │   ├── common.css               # Shared styles
+│   │   └── sync.css                 # Sync page styles
+│   ├── js/
+│   │   ├── common.js                # Shared utilities (apiCall, showToast)
+│   │   ├── sync/                    # ⭐ Sync page modules (7 files)
+│   │   │   ├── sync-utils.js        # Date/period utilities
+│   │   │   ├── sync-core.js         # Global vars, init
+│   │   │   ├── sync-companies.js    # Company list management
+│   │   │   ├── sync-progress.js     # Progress UI
+│   │   │   ├── sync-actions.js      # Sync operations
+│   │   │   ├── sync-schedule.js     # Auto sync schedule
+│   │   │   └── sync-tally-config.js # Tally configuration
+│   │   ├── dashboard.js             # Dashboard page
+│   │   └── audit.js                 # Audit page
+│   ├── sync.html                    # Sync settings page
+│   ├── dashboard.html               # Company dashboard
+│   └── audit.html                   # Audit trail page
+├── data/
+│   └── tally.db                     # SQLite database
+├── logs/                            # Application logs
 ├── config.yaml                      # App configuration
 ├── tally-export-config.yaml         # Full sync table/field config
 ├── tally-export-config-incremental.yaml  # Incremental sync config
 ├── database-structure.sql           # Full sync DB schema
 ├── database-structure-incremental.sql    # Incremental sync schema
 ├── run.py                           # Server startup script
-├── test_sync.py                     # Test script with UI
-└── DEVELOPER_GUIDE.md               # This file
+├── DEVELOPER_GUIDE.md               # This file
+└── TECHNICAL_DOCUMENTATION.md       # Detailed technical docs
 ```
+
+---
+
+## Controllers (API Layer)
+
+Controllers are separated by domain for better maintainability (v1.7.0+).
+
+### Controller Overview:
+
+| Controller | Prefix | Purpose |
+|------------|--------|---------|
+| `sync_controller.py` | `/api/sync` | Sync operations (full, incremental) |
+| `master_controller.py` | `/api/data` | Groups, Ledgers, Stock Items |
+| `voucher_controller.py` | `/api/data` | Vouchers, Voucher Details |
+| `outstanding_controller.py` | `/api/data` | Outstanding reports (Receivable/Payable) |
+| `ledger_controller.py` | `/api/data` | Ledger reports, Bill-wise |
+| `dashboard_controller.py` | `/api/data` | Dashboard counts, Company management |
+| `config_controller.py` | `/api/config` | Tally configuration |
+| `health_controller.py` | `/api/health` | Health checks |
+| `audit_controller.py` | `/api/audit` | Audit trail |
+
+### Adding a New Controller:
+
+1. Create file in `app/controllers/`
+2. Define router: `router = APIRouter()`
+3. Add endpoints with decorators
+4. Export in `__init__.py`
+5. Register in `main.py`
+
+```python
+# Example: app/controllers/my_controller.py
+from fastapi import APIRouter
+router = APIRouter()
+
+@router.get("/my-endpoint")
+async def my_endpoint():
+    return {"message": "Hello"}
+```
+
+```python
+# In main.py
+from .controllers.my_controller import router as my_router
+app.include_router(my_router, prefix="/api/my", tags=["My"])
+```
+
+---
+
+## Frontend JavaScript Modules
+
+JavaScript is modularized for the sync page (v1.8.0+).
+
+### Module Overview:
+
+| File | Purpose | Key Functions |
+|------|---------|---------------|
+| `sync-utils.js` | Utilities | `formatDateDisplay()`, `parseTallyDate()`, `extractPeriodFromName()` |
+| `sync-core.js` | Global state | `switchTab()`, `toggleCompany()`, global variables |
+| `sync-companies.js` | Company lists | `loadCompanies()`, `loadSyncedCompanies()` |
+| `sync-progress.js` | Progress UI | `showCircularProgress()`, `updateSyncStatus()` |
+| `sync-actions.js` | Sync operations | `syncCompanyFull()`, `incrementalSyncCompany()`, `deleteCompany()` |
+| `sync-schedule.js` | Auto sync | `startAutoSync()`, `stopAutoSync()`, `setSyncInterval()` |
+| `sync-tally-config.js` | Tally config | `loadTallyConfig()`, `testTallyConnection()` |
+
+### Script Loading Order (in sync.html):
+
+```html
+<script src="/static/js/common.js"></script>
+<script src="/static/js/sync/sync-utils.js"></script>
+<script src="/static/js/sync/sync-core.js"></script>
+<script src="/static/js/sync/sync-companies.js"></script>
+<script src="/static/js/sync/sync-progress.js"></script>
+<script src="/static/js/sync/sync-actions.js"></script>
+<script src="/static/js/sync/sync-schedule.js"></script>
+<script src="/static/js/sync/sync-tally-config.js"></script>
+```
+
+### Global Variables (sync-core.js):
+
+```javascript
+let selectedCompanies = [];      // Selected for batch sync
+let syncInterval = null;         // Status polling interval
+let companyPeriods = {};         // {companyName: {from, to}}
+let autoSyncTimer = null;        // Auto sync timer
+let syncIntervalMinutes = 60;    // Default 1 hour
+```
+
+### Adding a New JS Module:
+
+1. Create file in `static/js/sync/`
+2. Add developer notes at top
+3. Add script tag in `sync.html` (order matters!)
+4. Use global variables from `sync-core.js`
+5. Use `apiCall()` from `common.js` for API requests
 
 ---
 
@@ -413,8 +542,8 @@ class XMLBuilder:
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `POST` | `/api/sync/full` | Start full sync |
-| `POST` | `/api/sync/incremental` | Start incremental sync |
+| `POST` | `/api/sync/full` | Start full sync (delete + fresh sync) |
+| `POST` | `/api/sync/incremental` | Start incremental sync (changes only) |
 | `GET` | `/api/sync/status` | Get current sync status |
 | `POST` | `/api/sync/cancel` | Cancel running sync |
 | `GET` | `/api/sync/history` | Get sync history |
@@ -423,22 +552,70 @@ class XMLBuilder:
 | `GET` | `/api/sync/queue/status` | Get queue status |
 | `DELETE` | `/api/sync/queue` | Clear queue |
 
-### Data Endpoints (`/api/data/`)
+### Master Data Endpoints (`/api/data/` - master_controller.py)
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `GET` | `/api/data/companies` | List Tally companies |
+| `GET` | `/api/data/groups` | Get all account groups |
+| `GET` | `/api/data/ledgers` | Get ledgers with pagination |
+| `GET` | `/api/data/stock-items` | Get all stock items |
+
+### Voucher Endpoints (`/api/data/` - voucher_controller.py)
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/data/vouchers` | Get vouchers with filters |
+| `GET` | `/api/data/vouchers/{guid}/details` | Get voucher details |
+
+### Outstanding Endpoints (`/api/data/` - outstanding_controller.py)
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/data/outstanding` | Receivable/Payable summary |
+| `GET` | `/api/data/outstanding/billwise` | Bill-wise outstanding |
+| `GET` | `/api/data/outstanding/ledgerwise` | Ledger-wise outstanding |
+| `GET` | `/api/data/outstanding/ageing` | Ageing analysis (0-30, 30-60, etc.) |
+| `GET` | `/api/data/outstanding/group` | Group-wise outstanding |
+
+### Ledger Report Endpoints (`/api/data/` - ledger_controller.py)
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/data/ledger-report` | Ledger statement with running balance |
+| `GET` | `/api/data/ledger-billwise` | Bill-wise details for a ledger |
+
+### Dashboard Endpoints (`/api/data/` - dashboard_controller.py)
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/data/counts` | Table row counts for dashboard |
 | `GET` | `/api/data/synced-companies` | List synced companies |
-| `GET` | `/api/data/counts` | Get row counts per table |
-| `GET` | `/api/data/groups` | Query groups |
-| `GET` | `/api/data/ledgers` | Query ledgers |
-| `GET` | `/api/data/vouchers` | Query vouchers |
+| `GET` | `/api/data/companies` | Company details |
+| `DELETE` | `/api/data/company/{name}` | Delete company data |
+| `POST` | `/api/data/query` | Execute custom SQL query |
 
-### Health Endpoint
+### Config Endpoints (`/api/config/` - config_controller.py)
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `GET` | `/api/health` | Check Tally & DB connection |
+| `GET` | `/api/config` | Get current configuration |
+| `PUT` | `/api/config` | Update configuration |
+| `POST` | `/api/config/tally/test` | Test Tally connection |
+
+### Health Endpoints (`/api/health/` - health_controller.py)
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/health` | Overall health status |
+| `GET` | `/api/health/tally` | Tally connection status |
+
+### Audit Endpoints (`/api/audit/` - audit_controller.py)
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/audit/changes` | Audit trail records |
+| `GET` | `/api/audit/summary` | Insert/Update/Delete counts |
+| `GET` | `/api/audit/pending` | Pending restore items |
 
 ---
 
@@ -605,6 +782,29 @@ Full sync completed. Total rows: 0
 3. **Use queue for multi-company sync** instead of parallel requests
 4. **Check logs** in case of issues
 5. **Backup tally.db** before major changes
+6. **Add developer notes** to new files (see existing files for format)
+7. **Follow controller separation** - don't add unrelated endpoints to same controller
+
+---
+
+## Version History
+
+| Version | Date | Changes |
+|---------|------|---------|
+| v1.8.1 | 2026-01-14 | Add technical documentation and developer notes |
+| v1.8.0 | 2026-01-14 | Split sync.js into 7 modular files |
+| v1.7.1 | 2026-01-14 | Add SweetAlert for Tally errors |
+| v1.7.0 | 2026-01-14 | Split data_controller into 5 controllers |
+| v1.6.1 | 2026-01-11 | Fix Dashboard API issues |
+| v1.6.0 | 2026-01-10 | Ledger Bill-wise report |
+
+---
+
+## Related Documentation
+
+- **TECHNICAL_DOCUMENTATION.md** - Detailed technical reference
+- **README.md** - Quick start guide
+- **API Docs** - http://localhost:8000/docs (Swagger UI)
 
 ---
 
