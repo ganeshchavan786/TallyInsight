@@ -213,6 +213,28 @@ class DatabaseService:
         await conn.commit()
         logger.info("Ensured _company column exists in all tables")
     
+    async def ensure_alterid_column_exists(self) -> None:
+        """Auto-add alterid column to all tables for incremental sync support"""
+        conn = await self._get_connection()
+        added_count = 0
+        
+        for table in ALL_TABLES:
+            try:
+                cursor = await conn.execute(f"PRAGMA table_info({table})")
+                columns = await cursor.fetchall()
+                column_names = [col[1] for col in columns]
+                
+                if "alterid" not in column_names:
+                    await conn.execute(f"ALTER TABLE {table} ADD COLUMN alterid INTEGER DEFAULT 0")
+                    added_count += 1
+                    logger.debug(f"Added alterid column to {table}")
+            except Exception as e:
+                logger.debug(f"Could not add alterid to {table}: {e}")
+        
+        await conn.commit()
+        if added_count > 0:
+            logger.info(f"Added alterid column to {added_count} tables for incremental sync")
+    
     async def _ensure_columns_exist(self, table_name: str, columns: List[str]) -> None:
         """Auto-add missing columns to table based on data being inserted"""
         conn = await self._get_connection()

@@ -325,6 +325,12 @@ class MongoDBDatabaseService(BaseDatabaseService):
         except Exception as e:
             logger.warning(f"Could not ensure company_config collection: {e}")
     
+    async def ensure_alterid_column_exists(self) -> None:
+        """MongoDB doesn't need schema changes - alterid field is added dynamically"""
+        # MongoDB is schema-less, so alterid field will be added automatically
+        # when documents are inserted/updated with this field
+        logger.debug("MongoDB: alterid field will be added dynamically to documents")
+    
     async def update_company_config(self, company_name: str, company_guid: str = "",
                                      company_alterid: int = 0, last_alter_id_master: int = 0,
                                      last_alter_id_transaction: int = 0, sync_type: str = "full",

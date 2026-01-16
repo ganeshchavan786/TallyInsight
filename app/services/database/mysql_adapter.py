@@ -379,6 +379,31 @@ class MySQLDatabaseService(BaseDatabaseService):
         except Exception as e:
             logger.warning(f"Could not ensure company_config table: {e}")
     
+    async def ensure_alterid_column_exists(self) -> None:
+        """Add alterid column to all tables for incremental sync support"""
+        if not self._pool:
+            await self.connect()
+        
+        added_count = 0
+        for table in ALL_TABLES:
+            try:
+                async with self._pool.acquire() as conn:
+                    async with conn.cursor() as cur:
+                        # Check if column exists
+                        await cur.execute(f"""
+                            SELECT COUNT(*) FROM information_schema.columns 
+                            WHERE table_schema = DATABASE() AND table_name = '{table}' AND column_name = 'alterid'
+                        """)
+                        result = await cur.fetchone()
+                        if result[0] == 0:
+                            await cur.execute(f"ALTER TABLE `{table}` ADD COLUMN alterid INT DEFAULT 0")
+                            added_count += 1
+            except Exception as e:
+                logger.debug(f"Could not add alterid to {table}: {e}")
+        
+        if added_count > 0:
+            logger.info(f"Added alterid column to {added_count} tables for incremental sync")
+    
     async def update_company_config(self, company_name: str, company_guid: str = "",
                                      company_alterid: int = 0, last_alter_id_master: int = 0,
                                      last_alter_id_transaction: int = 0, sync_type: str = "full",

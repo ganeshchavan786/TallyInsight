@@ -98,9 +98,6 @@ async function loadSyncedCompanies() {
                         <button class="btn btn-sm btn-outline" onclick="event.stopPropagation(); goToCompanyDashboard('${company.company_name}')" title="Dashboard">
                             <i class="fas fa-chart-bar"></i>
                         </button>
-                        <button class="btn btn-sm btn-outline" onclick="event.stopPropagation(); goToCompanyAudit('${company.company_name}')" title="Audit">
-                            <i class="fas fa-history"></i>
-                        </button>
                         <button class="btn btn-sm btn-success" onclick="event.stopPropagation(); syncCompanyFull('${company.company_name}')" title="Full Sync">
                             <i class="fas fa-sync"></i>
                         </button>

@@ -1,5 +1,5 @@
 """
-Tally FastAPI Database Loader
+TallyInsight - Tally ERP Business Intelligence
 Application Runner
 """
 
@@ -18,7 +18,7 @@ from app.config import config
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Tally FastAPI Database Loader")
+    parser = argparse.ArgumentParser(description="TallyInsight - Tally ERP Business Intelligence")
     parser.add_argument("--host", default=config.api.host, help="Host to bind")
     parser.add_argument("--port", type=int, default=config.api.port, help="Port to bind")
     parser.add_argument("--reload", action="store_true", help="Enable auto-reload")
@@ -27,7 +27,7 @@ def main():
     
     print(f"""
     ============================================================
-    |         Tally FastAPI Database Loader v1.0.0             |
+    |         TallyInsight - Tally ERP Business Intelligence     |
     ============================================================
     |  Server: http://{args.host}:{args.port}
     |  Docs:   http://{args.host}:{args.port}/docs

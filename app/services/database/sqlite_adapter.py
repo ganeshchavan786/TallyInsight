@@ -292,6 +292,28 @@ class SQLiteDatabaseService(BaseDatabaseService):
         
         await conn.commit()
     
+    async def ensure_alterid_column_exists(self) -> None:
+        """Add alterid column to all tables for incremental sync support"""
+        conn = await self._get_connection()
+        added_count = 0
+        
+        for table in ALL_TABLES:
+            try:
+                cursor = await conn.execute(f"PRAGMA table_info({table})")
+                columns = await cursor.fetchall()
+                column_names = [col[1] for col in columns]
+                
+                if "alterid" not in column_names:
+                    await conn.execute(f"ALTER TABLE {table} ADD COLUMN alterid INTEGER DEFAULT 0")
+                    added_count += 1
+                    logger.debug(f"Added alterid column to {table}")
+            except Exception as e:
+                logger.debug(f"Could not add alterid to {table}: {e}")
+        
+        await conn.commit()
+        if added_count > 0:
+            logger.info(f"Added alterid column to {added_count} tables for incremental sync")
+    
     async def _ensure_columns_exist(self, table_name: str, columns: List[str]) -> None:
         """Auto-add missing columns to table"""
         conn = await self._get_connection()
@@ -352,6 +374,21 @@ class SQLiteDatabaseService(BaseDatabaseService):
             await conn.execute("CREATE INDEX IF NOT EXISTS idx_audit_session ON audit_log(sync_session_id)")
             await conn.execute("CREATE INDEX IF NOT EXISTS idx_audit_table ON audit_log(table_name)")
             await conn.execute("CREATE INDEX IF NOT EXISTS idx_audit_company ON audit_log(company)")
+            
+            # Create sync_history table
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS sync_history (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    sync_type TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    started_at TEXT,
+                    completed_at TEXT,
+                    rows_processed INTEGER DEFAULT 0,
+                    company_name TEXT,
+                    error_message TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
             
             await conn.commit()
         except Exception as e:

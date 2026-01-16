@@ -1,7 +1,7 @@
 {
-  "name": "Tally Database Loader",
-  "short_name": "TallySync",
-  "description": "Sync Tally data to SQLite database",
+  "name": "TallyInsight",
+  "short_name": "TallyInsight",
+  "description": "Tally ERP Business Intelligence",
   "start_url": "/sync.html",
   "display": "standalone",
   "background_color": "#ffffff",
@@ -9,9 +9,15 @@
   "orientation": "portrait-primary",
   "icons": [
     {
-      "src": "/static/images/icon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
+      "src": "/static/assets/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/static/assets/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
       "purpose": "any maskable"
     }
   ],

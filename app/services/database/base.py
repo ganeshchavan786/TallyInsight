@@ -96,6 +96,11 @@ class BaseDatabaseService(ABC):
         pass
     
     @abstractmethod
+    async def ensure_alterid_column_exists(self) -> None:
+        """Add alterid column to all tables for incremental sync support"""
+        pass
+    
+    @abstractmethod
     async def update_company_config(self, company_name: str, **kwargs) -> None:
         """Update or insert company config record"""
         pass

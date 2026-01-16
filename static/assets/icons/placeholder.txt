@@ -1,0 +1,13 @@
+App Icons Placeholder
+=====================
+
+Required icons for PWA:
+- icon-192.png (192x192 pixels)
+- icon-512.png (512x512 pixels)
+
+You can generate these icons using:
+1. https://realfavicongenerator.net/
+2. https://www.pwabuilder.com/imageGenerator
+3. Any image editor (Figma, Photoshop, etc.)
+
+Recommended: Use your app logo with padding on a solid background color (#2563eb)

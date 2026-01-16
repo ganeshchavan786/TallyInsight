@@ -107,9 +107,9 @@ class XMLBuilder:
         self._incremental = incremental
         
         if incremental:
-            config_path = Path("tally-export-config-incremental.yaml")
+            config_path = Path("config/tally-export-config-incremental.yaml")
         else:
-            config_path = Path("tally-export-config.yaml")
+            config_path = Path("config/tally-export-config.yaml")
         
         if config_path.exists():
             with open(config_path, "r", encoding="utf-8") as f:

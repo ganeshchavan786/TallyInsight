@@ -49,10 +49,6 @@ function goToCompanyDashboard(companyName) {
     window.location.href = `dashboard.html?company=${encodeURIComponent(companyName)}`;
 }
 
-// Go to Company Audit
-function goToCompanyAudit(companyName) {
-    window.location.href = `audit.html?company=${encodeURIComponent(companyName)}`;
-}
 
 // Toggle Dropdown Menu
 function toggleDropdown(companyId) {

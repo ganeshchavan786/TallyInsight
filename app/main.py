@@ -1,5 +1,5 @@
 """
-Tally FastAPI Database Loader
+TallyInsight - Tally ERP Business Intelligence
 Main Application Entry Point
 """
 
@@ -40,7 +40,7 @@ setup_logger(
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan events"""
-    logger.info("Tally FastAPI Database Loader starting...")
+    logger.info("TallyInsight starting...")
     logger.info(f"API running on http://{config.api.host}:{config.api.port}")
     
     # Ensure company_config table exists on startup
@@ -50,12 +50,12 @@ async def lifespan(app: FastAPI):
     await database_service.disconnect()
     
     yield
-    logger.info("Tally FastAPI Database Loader shutting down...")
+    logger.info("TallyInsight shutting down...")
 
 
 # Create FastAPI application
 app = FastAPI(
-    title="Tally FastAPI Database Loader",
+    title="TallyInsight",
     description="Sync Tally ERP data to SQLite database",
     version="1.0.0",
     lifespan=lifespan
@@ -96,7 +96,7 @@ async def root():
     html_path = Path(__file__).parent.parent / "static" / "sync.html"
     if html_path.exists():
         return FileResponse(str(html_path), media_type="text/html")
-    return {"name": "Tally FastAPI Database Loader", "version": "2.4.0", "docs": "/docs"}
+    return {"name": "TallyInsight", "version": "2.4.0", "docs": "/docs"}
 
 
 @app.get("/sync.html")
@@ -160,7 +160,7 @@ async def outstanding_report_page():
 async def info():
     """System information"""
     return {
-        "name": "Tally FastAPI Database Loader",
+        "name": "TallyInsight",
         "version": "1.0.0",
         "tally": {
             "server": config.tally.server,

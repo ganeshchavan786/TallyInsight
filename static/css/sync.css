@@ -661,6 +661,13 @@
 .synced-company-list {
     max-height: 400px;
     overflow-y: auto;
+    overflow-x: visible;
+    position: relative;
+}
+
+/* Allow dropdown to overflow outside the list */
+.synced-company-list:has(.dropdown-menu.show) {
+    overflow: visible;
 }
 
 .synced-company-item {
@@ -733,7 +740,7 @@
     border-radius: 8px;
     box-shadow: var(--shadow-lg);
     min-width: 180px;
-    z-index: 100;
+    z-index: 1000;
     display: none;
     margin-top: 4px;
 }
@@ -815,8 +822,8 @@
     stroke: var(--primary);
     stroke-width: 4;
     stroke-linecap: round;
-    stroke-dasharray: 126;
-    stroke-dashoffset: 126;
+    stroke-dasharray: 125.66;
+    stroke-dashoffset: 125.66;
     transition: stroke-dashoffset 0.3s ease;
 }
 

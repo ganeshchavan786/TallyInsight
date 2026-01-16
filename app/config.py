@@ -95,7 +95,7 @@ class AppConfig(BaseModel):
     health: HealthConfig = HealthConfig()
 
 
-def load_config(config_path: str = "config.yaml") -> AppConfig:
+def load_config(config_path: str = "config/config.yaml") -> AppConfig:
     """Load configuration from YAML file"""
     config_file = Path(config_path)
     
@@ -107,7 +107,7 @@ def load_config(config_path: str = "config.yaml") -> AppConfig:
     return AppConfig()
 
 
-def save_config(config: AppConfig, config_path: str = "config.yaml") -> None:
+def save_config(config: AppConfig, config_path: str = "config/config.yaml") -> None:
     """Save configuration to YAML file"""
     config_file = Path(config_path)
     

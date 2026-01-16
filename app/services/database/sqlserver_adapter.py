@@ -395,6 +395,28 @@ class SQLServerDatabaseService(BaseDatabaseService):
         except Exception as e:
             logger.warning(f"Could not ensure company_config table: {e}")
     
+    async def ensure_alterid_column_exists(self) -> None:
+        """Add alterid column to all tables for incremental sync support"""
+        if not self._connection:
+            await self.connect()
+        
+        added_count = 0
+        for table in ALL_TABLES:
+            try:
+                # Check if column exists
+                result = await self.fetch_scalar(f"""
+                    SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS 
+                    WHERE TABLE_NAME = '{table}' AND COLUMN_NAME = 'alterid'
+                """)
+                if result == 0:
+                    await self.execute(f"ALTER TABLE [{table}] ADD alterid INT DEFAULT 0")
+                    added_count += 1
+            except Exception as e:
+                logger.debug(f"Could not add alterid to {table}: {e}")
+        
+        if added_count > 0:
+            logger.info(f"Added alterid column to {added_count} tables for incremental sync")
+    
     async def update_company_config(self, company_name: str, company_guid: str = "",
                                      company_alterid: int = 0, last_alter_id_master: int = 0,
                                      last_alter_id_transaction: int = 0, sync_type: str = "full",

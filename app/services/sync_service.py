@@ -288,6 +288,10 @@ class SyncService:
             logger.info("Creating database tables (incremental schema)...")
             await database_service.create_tables(incremental=True)
             
+            # Ensure alterid column exists in all tables (for existing databases)
+            logger.info("Ensuring alterid column exists for incremental sync...")
+            await database_service.ensure_alterid_column_exists()
+            
             # Ensure _diff and _delete tables exist
             await database_service.ensure_company_config_table()
             
@@ -321,13 +325,16 @@ class SyncService:
                 return self.get_status()
             
             # Process Primary tables for diff comparison (deleted/modified records)
+            self.progress = 10
             if master_changed:
                 logger.info("Processing master data diff...")
                 await self._process_diff_for_primary_tables("master", last_alterid_master)
+                self.progress = 30
             
             if transaction_changed:
                 logger.info("Processing transaction data diff...")
                 await self._process_diff_for_primary_tables("transaction", last_alterid_transaction)
+                self.progress = 50
             
             if self._cancel_requested:
                 self.status = SyncStatus.CANCELLED
@@ -338,10 +345,12 @@ class SyncService:
             if master_changed:
                 logger.info("Importing changed master data...")
                 await self._import_changed_records("master", last_alterid_master)
+                self.progress = 70
             
             if transaction_changed:
                 logger.info("Importing changed transaction data...")
                 await self._import_changed_records("transaction", last_alterid_transaction)
+                self.progress = 90
             
             if self._cancel_requested:
                 self.status = SyncStatus.CANCELLED
@@ -482,15 +491,11 @@ class SyncService:
                 """, (self.current_company,))
                 
                 # Step 4: Find modified records (guid exists but alterid different)
-                await database_service.execute(f"""
-                    INSERT OR IGNORE INTO _delete 
-                    SELECT t.guid FROM {table_name} t 
-                    JOIN _diff d ON d.guid = t.guid 
-                    WHERE d.alterid <> COALESCE(t.alterid, '')
-                    AND t._company = ?
-                """, (self.current_company,))
+                # NOTE: We DON'T delete modified records anymore - we just update them in _import_changed_records
+                # Only truly deleted records (not in Tally anymore) should be deleted
+                # Modified records will be updated via upsert
                 
-                # Step 5: Delete from main table (with audit logging)
+                # Step 5: Delete ONLY truly deleted records from main table (with audit logging)
                 delete_result = await database_service.fetch_one("SELECT COUNT(*) as cnt FROM _delete")
                 delete_count = delete_result.get("cnt", 0) if delete_result else 0
                 
@@ -537,7 +542,11 @@ class SyncService:
                 logger.error(f"    Failed to process diff for {table_name}: {e}")
     
     async def _import_changed_records(self, data_type: str, last_alterid: int) -> None:
-        """Import new/modified records with AlterID filter"""
+        """Import new/modified records with AlterID filter
+        
+        NOTE: This imports records that were marked for deletion in _process_diff_for_primary_tables
+        by fetching them fresh from Tally (without AlterID filter for deleted GUIDs)
+        """
         if data_type == "master":
             tables = xml_builder.get_master_tables()
         else:
@@ -554,13 +563,53 @@ class SyncService:
             self.progress = int((i / total_tables) * 50) + 50  # 50-100%
             
             try:
-                # Add AlterID filter
-                table_config_with_filter = table_config.copy()
-                if last_alterid > 0:
-                    existing_filters = list(table_config_with_filter.get("filters", []) or [])
-                    table_config_with_filter["filters"] = existing_filters + [f"$AlterID > {last_alterid}"]
+                # For incremental sync, we need to fetch:
+                # 1. Records with AlterID > last_alterid (new records)
+                # 2. Records that were deleted (from _delete table) - these need re-import
                 
-                rows = await self._extract_table_data(table_config_with_filter)
+                # First, fetch records with AlterID filter (new/modified)
+                table_config_with_filter = table_config.copy()
+                rows = []
+                
+                # Fetch ALL records from _diff table (these are current Tally records)
+                # Then compare with DB and import only changed ones
+                diff_guids = await database_service.fetch_all("SELECT guid, alterid FROM _diff")
+                
+                if diff_guids:
+                    # Get GUIDs that need update (alterid different or not in DB)
+                    guids_to_fetch = []
+                    for diff_row in diff_guids:
+                        guid = diff_row.get("guid", "")
+                        tally_alterid = str(diff_row.get("alterid", ""))
+                        
+                        # Check if exists in DB with same alterid
+                        existing = await database_service.fetch_one(
+                            f"SELECT alterid FROM {table_name} WHERE guid = ? AND _company = ?",
+                            (guid, self.current_company)
+                        )
+                        
+                        if not existing:
+                            # New record - need to fetch
+                            guids_to_fetch.append(guid)
+                        elif str(existing.get("alterid", "")) != tally_alterid:
+                            # Modified record - need to fetch
+                            guids_to_fetch.append(guid)
+                    
+                    if guids_to_fetch:
+                        # Fetch full records from Tally for these GUIDs
+                        # We fetch without AlterID filter to get all needed records
+                        rows = await self._extract_table_data(table_config_with_filter) or []
+                        # Filter to only the GUIDs we need
+                        rows = [r for r in rows if r.get("guid") in guids_to_fetch]
+                    else:
+                        rows = []
+                else:
+                    # No diff data - fetch with AlterID filter as fallback
+                    if last_alterid > 0:
+                        existing_filters = list(table_config_with_filter.get("filters", []) or [])
+                        table_config_with_filter["filters"] = existing_filters + [f"$AlterID > {last_alterid}"]
+                    rows = await self._extract_table_data(table_config_with_filter) or []
+                
                 if rows:
                     # Add company name to rows
                     for row in rows:
@@ -787,16 +836,20 @@ class SyncService:
             else:
                 logger.info(f"  {table_name}: imported 0 rows")
     
-    def _generate_date_chunks(self, from_date: str, to_date: str, chunk_months: int = 6) -> List[tuple]:
+    def _generate_date_chunks(self, from_date: str, to_date: str) -> List[tuple]:
         """Generate date chunks for large period sync
         
         Args:
             from_date: Start date (YYYY-MM-DD)
             to_date: End date (YYYY-MM-DD)
-            chunk_months: Number of months per chunk (default 6)
             
         Returns:
             List of (chunk_from, chunk_to) tuples
+            
+        Chunking Strategy:
+            - <= 12 months: No chunking (single request)
+            - 12-24 months: 6-month chunks
+            - > 24 months: 12-month (1 year) chunks
         """
         chunks = []
         try:
@@ -809,6 +862,12 @@ class SyncService:
             # If period is 12 months or less, no chunking needed
             if total_months <= 12:
                 return [(from_date, to_date)]
+            
+            # Determine chunk size based on total period
+            if total_months <= 24:
+                chunk_months = 6  # 6-month chunks for 1-2 year periods
+            else:
+                chunk_months = 12  # 1-year chunks for > 2 year periods
             
             logger.info(f"Period is {total_months} months, splitting into {chunk_months}-month chunks")
             
@@ -849,9 +908,9 @@ class SyncService:
         from_date = config.tally.from_date
         to_date = config.tally.to_date
         
-        # Generate date chunks (3-month chunks for periods > 1 year)
-        # Smaller chunks = less Tally load, more stable sync
-        date_chunks = self._generate_date_chunks(from_date, to_date, chunk_months=3)
+        # Generate date chunks based on period length
+        # <= 12 months: no chunking, 12-24 months: 6-month chunks, > 24 months: 12-month chunks
+        date_chunks = self._generate_date_chunks(from_date, to_date)
         
         if parallel:
             await self._sync_tables_parallel(transaction_tables, start_idx, total_tables, "transaction")

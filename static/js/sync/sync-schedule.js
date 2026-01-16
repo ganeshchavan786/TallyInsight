@@ -103,7 +103,10 @@ function startAutoSync() {
         clearInterval(autoSyncTimer);
     }
     
-    const intervalMs = syncIntervalMinutes * 60 * 1000;
+    // For testing: Use 5 minutes (300000ms) regardless of UI selection
+    // TODO: Remove this override after testing
+    const intervalMs = 5 * 60 * 1000; // 5 minutes for testing
+    // const intervalMs = syncIntervalMinutes * 60 * 1000;
     
     autoSyncTimer = setInterval(async () => {
         console.log('Auto sync triggered');

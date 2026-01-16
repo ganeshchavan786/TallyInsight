@@ -82,7 +82,7 @@ async function updateSyncStatus() {
         
         // Update progress
         const percent = status.progress || 0;
-        updateCircularProgress(status.company, percent);
+        updateCircularProgress(status.current_company, percent);
         
         // Update hidden elements
         const progressPercent = document.getElementById('progress-percent');
@@ -123,7 +123,7 @@ function hideCircularProgress() {
         const text = p.querySelector('.progress-text');
         if (text) text.textContent = '0%';
         const bar = p.querySelector('.progress-bar');
-        if (bar) bar.style.strokeDashoffset = '126';
+        if (bar) bar.style.strokeDashoffset = '125.66';
     });
 }
 
@@ -138,6 +138,9 @@ function updateCircularProgress(companyName, percent) {
                    document.getElementById(`new-progress-${companyId}`);
     
     if (progress) {
+        // Ensure progress is visible
+        progress.style.display = 'flex';
+        
         const text = progress.querySelector('.progress-text');
         const bar = progress.querySelector('.progress-bar');
         
